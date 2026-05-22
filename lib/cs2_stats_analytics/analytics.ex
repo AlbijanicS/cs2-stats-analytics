@@ -1,17 +1,38 @@
 defmodule Cs2StatsAnalytics.Analytics do
   import Ecto.Query
   alias Cs2StatsAnalytics.Schemas.{Player, PlayerMatchStat}
-  alias Cs2StatsAnalytics.Faceit.{FakeClient, Normalizer}
+  alias Cs2StatsAnalytics.Faceit.Normalizer
   alias Cs2StatsAnalytics.PlayerMatchImporter
   alias Cs2StatsAnalytics.Repo
 
+  @fresh_for_seconds 15 * 60
+
+  def get_or_sync_dashboard(nickname, limit \\ 30) do
+    case fetch_player_by_nickname(nickname) do
+      {:ok, player} ->
+        if fresh?(player) do
+          case get_dashboard(nickname) do
+            {:error, :no_recent_stats} -> sync_and_get_dashboard(nickname, limit)
+            result -> result
+          end
+        else
+          sync_and_get_dashboard(nickname, limit)
+        end
+
+      {:error, :player_not_found} ->
+        sync_and_get_dashboard(nickname, limit)
+    end
+  end
+
   def sync_player(nickname, limit \\ 30) do
-    with {:ok, api_player} <- FakeClient.get_player_by_nickname(nickname),
-         player_attrs =
+    client = faceit_client()
+
+    with {:ok, api_player} <- client.get_player_by_nickname(nickname),
+         {:ok, player_attrs} <-
            api_player
-           |> Normalizer.normalize_player()
-           |> Map.put(:last_synced_at, now()),
-         {:ok, history} <- FakeClient.get_player_history(player_attrs.faceit_player_id, limit) do
+           |> Normalizer.normalize_player(),
+         player_attrs = Map.put(player_attrs, :last_synced_at, now()),
+         {:ok, history} <- client.get_player_history(player_attrs.faceit_player_id, limit) do
       history
       |> Map.get("items", [])
       |> Enum.take(limit)
@@ -36,16 +57,14 @@ defmodule Cs2StatsAnalytics.Analytics do
   end
 
   defp import_match(api_history_match, player_attrs) do
-    with {:ok, api_match_stats} <- FakeClient.get_match_stats(api_history_match["match_id"]) do
-      match_attrs = Normalizer.normalize_match(api_history_match, api_match_stats)
-
-      stats_attrs =
-        Normalizer.normalize_player_match_stat(
-          api_history_match,
-          api_match_stats,
-          player_attrs.faceit_player_id
-        )
-
+    with {:ok, api_match_stats} <- faceit_client().get_match_stats(api_history_match["match_id"]),
+         {:ok, match_attrs} <- Normalizer.normalize_match(api_history_match, api_match_stats),
+         {:ok, stats_attrs} <-
+           Normalizer.normalize_player_match_stat(
+             api_history_match,
+             api_match_stats,
+             player_attrs.faceit_player_id
+           ) do
       PlayerMatchImporter.import_player_match(%{
         player: player_attrs,
         match: match_attrs,
@@ -65,6 +84,12 @@ defmodule Cs2StatsAnalytics.Analytics do
          latest_match_summary: latest_match_summary(recent_stats),
          trends: build_trends(recent_stats)
        }}
+    end
+  end
+
+  defp sync_and_get_dashboard(nickname, limit) do
+    with {:ok, _imported_matches} <- sync_player(nickname, limit) do
+      get_dashboard(nickname)
     end
   end
 
@@ -173,8 +198,18 @@ defmodule Cs2StatsAnalytics.Analytics do
     |> Float.round(1)
   end
 
+  defp fresh?(%Player{last_synced_at: nil}), do: false
+
+  defp fresh?(%Player{last_synced_at: last_synced_at}) do
+    DateTime.diff(now(), last_synced_at, :second) <= @fresh_for_seconds
+  end
+
   defp now do
     DateTime.utc_now()
     |> DateTime.truncate(:second)
+  end
+
+  defp faceit_client do
+    Application.fetch_env!(:cs2_stats_analytics, :faceit_client)
   end
 end

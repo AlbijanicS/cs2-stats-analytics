@@ -14,16 +14,16 @@ defmodule Cs2StatsAnalyticsWeb.Router do
     plug :accepts, ["json"]
   end
 
-  scope "/", Cs2StatsAnalyticsWeb do
-    pipe_through :browser
-
-    get "/", PageController, :home
-  end
-
   # Other scopes may use custom stacks.
   # scope "/api", Cs2StatsAnalyticsWeb do
   #   pipe_through :api
   # end
+
+  scope "/", Cs2StatsAnalyticsWeb do
+    pipe_through :browser
+
+    live "/", PlayerDashboardLive, :index
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:cs2_stats_analytics, :dev_routes) do
