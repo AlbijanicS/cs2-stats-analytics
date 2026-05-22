@@ -1,4 +1,4 @@
-defmodule Cs2StatsAnalytics.CS2.Player do
+defmodule Cs2StatsAnalytics.Schemas.Player do
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -12,7 +12,7 @@ defmodule Cs2StatsAnalytics.CS2.Player do
     field :faceit_elo, :integer
     field :last_synced_at, :utc_datetime
 
-    has_many :player_match_stats, Cs2StatsAnalytics.CS2.PlayerMatchStat
+    has_many :player_match_stats, Cs2StatsAnalytics.Schemas.PlayerMatchStat
 
     has_many :matches,
       through: [:player_match_stats, :match]

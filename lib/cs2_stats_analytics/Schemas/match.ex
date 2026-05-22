@@ -1,4 +1,4 @@
-defmodule Cs2StatsAnalytics.CS2.Match do
+defmodule Cs2StatsAnalytics.Schemas.Match do
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -13,7 +13,7 @@ defmodule Cs2StatsAnalytics.CS2.Match do
     field :score_faction2, :integer
     field :raw_payload, :map
 
-    has_many :player_match_stats, Cs2StatsAnalytics.CS2.PlayerMatchStat
+    has_many :player_match_stats, Cs2StatsAnalytics.Schemas.PlayerMatchStat
 
     has_many :players,
       through: [:player_match_stats, :player]

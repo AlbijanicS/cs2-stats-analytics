@@ -1,8 +1,8 @@
-defmodule Cs2StatsAnalytics.CS2.PlayerMatchStat do
+defmodule Cs2StatsAnalytics.Schemas.PlayerMatchStat do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias Cs2StatsAnalytics.CS2.{Player, Match}
+  alias Cs2StatsAnalytics.Schemas.{Player, Match}
 
   schema "player_match_stats" do
     belongs_to :player, Player
