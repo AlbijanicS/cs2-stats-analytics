@@ -24,12 +24,66 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/cs2_stats_analytics"
 import topbar from "../vendor/topbar"
+import Chart from "chart.js/auto"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+const Hooks = {
+  ...colocatedHooks,
+
+  AdrTrendChart: {
+    mounted() {
+      this.renderChart()
+    },
+
+    updated() {
+      this.renderChart()
+    },
+
+    destroyed() {
+      if (this.chart) {
+        this.chart.destroy()
+      }
+    },
+
+    renderChart() {
+      const points = JSON.parse(this.el.dataset.points || "[]")
+
+      const labels = points.map((point) => point.label)
+      const adrValues = points.map((point) => point.adr)
+
+      if (this.chart) {
+        this.chart.destroy()
+      }
+
+      this.chart = new Chart(this.el, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "ADR",
+              data: adrValues,
+              tension: 0.35,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+            },
+          },
+        },
+      })
+    },
+  },
+}
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: Hooks,
 })
 
 // Show progress bar on live navigation and form submits
