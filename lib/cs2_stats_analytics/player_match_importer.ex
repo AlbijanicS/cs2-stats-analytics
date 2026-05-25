@@ -1,4 +1,13 @@
 defmodule Cs2StatsAnalytics.PlayerMatchImporter do
+  @moduledoc """
+  Persists a normalized player, match, and stat line in one transaction.
+
+  The importer expects already-normalized attrs. It does not call external
+  services or perform dashboard calculations. Upserts use explicit replace
+  field lists so imports can be rerun safely without blindly replacing every
+  database column.
+  """
+
   alias Ecto.Multi
   alias Cs2StatsAnalytics.Repo
   alias Cs2StatsAnalytics.Schemas.{Player, Match, PlayerMatchStat}

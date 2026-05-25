@@ -13,8 +13,20 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
     |> form("#player-search-form", search: %{nickname: "stefan"})
     |> render_submit()
 
+    render_async(view)
+
     assert has_element?(view, "#dashboard-summary")
     assert has_element?(view, "#dashboard-summary", "stefan")
+
+    assert has_element?(
+             view,
+             "#performance-trend-chart[phx-hook='AdrTrendChart'][phx-update='ignore'][data-points]"
+           )
+
+    assert has_element?(
+             view,
+             "#aim-trend-chart[phx-hook='HeadshotTrendChart'][phx-update='ignore'][data-points]"
+           )
   end
 
   test "renders an error for blank search", %{conn: conn} do

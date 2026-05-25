@@ -1,13 +1,24 @@
 defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
+  @moduledoc """
+  LiveView for searching a FACEIT nickname and rendering the analytics dashboard.
+
+  The LiveView owns form state and presentation only. It calls
+  `Cs2StatsAnalytics.Analytics` for all sync and read decisions, keeping FACEIT
+  client, normalization, import, and query details out of the UI layer.
+  """
+
   use Cs2StatsAnalyticsWeb, :live_view
 
   alias Cs2StatsAnalytics.Analytics
+
+  @dashboard_match_limit 10
 
   def mount(_params, _session, socket) do
     socket =
       socket
       |> assign(:form, to_form(%{"nickname" => ""}, as: :search))
       |> assign(:dashboard, nil)
+      |> assign(:status, :empty)
       |> assign(:error, nil)
 
     {:ok, socket}
@@ -41,11 +52,16 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
           <.button
             type="submit"
             variant="primary"
+            phx-disable-with="Fetching..."
             class="rounded-lg bg-zinc-900 px-5 py-2 font-medium text-white"
           >
             Find stats
           </.button>
         </.form>
+
+        <p :if={@status == :loading} id="dashboard-loading" class="mt-4 text-sm text-zinc-600">
+          Fetching stats...
+        </p>
 
         <p :if={@error} id="dashboard-error" class="mt-4 text-sm text-red-600">
           {@error}
@@ -57,45 +73,12 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
         id="dashboard-summary"
         class="mt-6 grid gap-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm sm:grid-cols-3 lg:grid-cols-6"
       >
-        <div>
-          <p class="text-sm text-zinc-500">Player</p>
-          <p class="mt-1 text-xl font-semibold text-zinc-900">{@dashboard.player.nickname}</p>
-        </div>
-
-        <div>
-          <p class="text-sm text-zinc-500">Matches</p>
-          <p class="mt-1 text-xl font-semibold text-zinc-900">
-            {@dashboard.averages.matches_played}
-          </p>
-        </div>
-
-        <div>
-          <p class="text-sm text-zinc-500">Win rate</p>
-          <p class="mt-1 text-xl font-semibold text-zinc-900">
-            {@dashboard.averages.win_rate}%
-          </p>
-        </div>
-
-        <div>
-          <p class="text-sm text-zinc-500">Avg Kills</p>
-          <p class="mt-1 text-xl font-semibold text-zinc-900">
-            {@dashboard.averages.avg_kills}
-          </p>
-        </div>
-
-        <div>
-          <p class="text-sm text-zinc-500">Avg ADR</p>
-          <p class="mt-1 text-xl font-semibold text-zinc-900">
-            {@dashboard.averages.avg_adr}
-          </p>
-        </div>
-
-        <div>
-          <p class="text-sm text-zinc-500">Avg K/D</p>
-          <p class="mt-1 text-xl font-semibold text-zinc-900">
-            {@dashboard.averages.avg_kd_ratio}
-          </p>
-        </div>
+        <.stat_card label="Player" value={@dashboard.player.nickname} />
+        <.stat_card label="Matches" value={@dashboard.averages.matches_played} />
+        <.stat_card label="Win rate" value={"#{@dashboard.averages.win_rate}%"} />
+        <.stat_card label="Avg Kills" value={@dashboard.averages.avg_kills} />
+        <.stat_card label="Avg ADR" value={@dashboard.averages.avg_adr} />
+        <.stat_card label="Avg K/D" value={@dashboard.averages.avg_kd_ratio} />
       </section>
 
       <section
@@ -142,6 +125,56 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
               {@dashboard.latest_match_summary.kd_ratio}
             </p>
           </div>
+        </div>
+      </section>
+
+      <section
+        :if={@dashboard}
+        id="performance-trend-chart-section"
+        class="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
+      >
+        <h2 class="text-xl font-semibold text-zinc-900">
+          ADR + K/D Trend
+        </h2>
+
+        <p class="mt-1 text-sm text-zinc-500">
+          ADR and K/D trend from oldest match to newest match.
+        </p>
+
+        <div class="mt-5 h-72">
+          <canvas
+            id="performance-trend-chart"
+            phx-hook="AdrTrendChart"
+            phx-update="ignore"
+            data-points={trend_chart_points(@dashboard)}
+            class="h-full w-full"
+          >
+          </canvas>
+        </div>
+      </section>
+
+      <section
+        :if={@dashboard}
+        id="aim-trend-chart-section"
+        class="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
+      >
+        <h2 class="text-xl font-semibold text-zinc-900">
+          Aim Trend
+        </h2>
+
+        <p class="mt-1 text-sm text-zinc-500">
+          Headshot percentage from oldest match to newest match.
+        </p>
+
+        <div class="mt-5 h-72">
+          <canvas
+            id="aim-trend-chart"
+            phx-hook="HeadshotTrendChart"
+            phx-update="ignore"
+            data-points={aim_chart_points(@dashboard)}
+            class="h-full w-full"
+          >
+          </canvas>
         </div>
       </section>
 
@@ -197,30 +230,6 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
           </table>
         </div>
       </section>
-
-      <section
-        :if={@dashboard}
-        id="adr-line-chart-section"
-        class="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
-      >
-        <h2 class="text-xl font-semibold text-zinc-900">
-          ADR Line Chart
-        </h2>
-
-        <p class="mt-1 text-sm text-zinc-500">
-          ADR trend from oldest match to newest match.
-        </p>
-
-        <div class="mt-5 h-72">
-          <canvas
-            id="adr-line-chart"
-            phx-hook="AdrTrendChart"
-            data-points={adr_chart_points(@dashboard)}
-            class="h-full w-full"
-          >
-          </canvas>
-        </div>
-      </section>
     </Layouts.app>
     """
   end
@@ -236,35 +245,70 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
           |> assign(:form, form)
           |> assign(:dashboard, nil)
           |> assign(:error, "Enter a FACEIT nickname.")
+          |> assign(:status, :error)
 
         nickname ->
-          load_dashboard(socket, nickname, form)
+          socket
+          |> assign(:form, form)
+          |> assign(:dashboard, nil)
+          |> assign(:error, nil)
+          |> assign(:status, :loading)
+          |> start_async(:load_dashboard, fn ->
+            Analytics.get_or_sync_dashboard(nickname, @dashboard_match_limit)
+          end)
       end
 
     {:noreply, socket}
   end
 
-  defp load_dashboard(socket, nickname, form) do
-    with {:ok, dashboard} <- Analytics.get_or_sync_dashboard(nickname, 3) do
+  def handle_async(:load_dashboard, {:ok, {:ok, dashboard}}, socket) do
+    socket =
       socket
-      |> assign(:form, form)
       |> assign(:dashboard, dashboard)
       |> assign(:error, nil)
-    else
-      {:error, reason} ->
-        socket
-        |> assign(:form, form)
-        |> assign(:dashboard, nil)
-        |> assign(:error, error_message(reason))
-    end
+      |> assign(:status, :loaded)
+
+    {:noreply, socket}
   end
 
-  defp adr_chart_points(dashboard) do
+  def handle_async(:load_dashboard, {:ok, {:error, reason}}, socket) do
+    socket =
+      socket
+      |> assign(:dashboard, nil)
+      |> assign(:error, error_message(reason))
+      |> assign(:status, :error)
+
+    {:noreply, socket}
+  end
+
+  def handle_async(:load_dashboard, {:exit, _reason}, socket) do
+    socket =
+      socket
+      |> assign(:dashboard, nil)
+      |> assign(:error, "Something went wrong while loading the dashboard.")
+      |> assign(:status, :error)
+
+    {:noreply, socket}
+  end
+
+  defp trend_chart_points(dashboard) do
     dashboard.trends
     |> Enum.map(fn point ->
       %{
         label: point.label,
-        adr: point.adr
+        adr: point.adr,
+        kd_ratio: point.kd_ratio
+      }
+    end)
+    |> Jason.encode!()
+  end
+
+  defp aim_chart_points(dashboard) do
+    dashboard.trends
+    |> Enum.map(fn point ->
+      %{
+        label: point.label,
+        headshot_percent: point.headshot_percent
       }
     end)
     |> Jason.encode!()
@@ -275,4 +319,18 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
   defp error_message(:match_stats_not_found), do: "Could not load match statistics."
   defp error_message(:no_recent_stats), do: "No recent stats are available for this player yet."
   defp error_message(_reason), do: "Could not load the dashboard."
+
+  attr :label, :string, required: true
+  attr :value, :any, required: true
+
+  defp stat_card(assigns) do
+    ~H"""
+    <div>
+      <p class="text-sm text-zinc-500">{@label}</p>
+      <p class="mt-1 text-xl font-semibold text-zinc-900">
+        {@value}
+      </p>
+    </div>
+    """
+  end
 end

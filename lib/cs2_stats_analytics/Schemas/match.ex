@@ -1,4 +1,11 @@
 defmodule Cs2StatsAnalytics.Schemas.Match do
+  @moduledoc """
+  Ecto schema for an imported CS2 match.
+
+  Matches are identified by FACEIT match id and store basic match metadata plus
+  the raw source payload used for traceability while the app is still evolving.
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
 

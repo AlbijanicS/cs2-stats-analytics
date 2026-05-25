@@ -1,4 +1,12 @@
 defmodule Cs2StatsAnalytics.Faceit.Normalizer do
+  @moduledoc """
+  Converts FACEIT-shaped API maps into internal attributes.
+
+  The normalizer is the boundary between external data and the app's database
+  shape. Public functions return `{:ok, attrs}` or `{:error, reason}` so bad
+  or incomplete API responses do not crash callers.
+  """
+
   def normalize_player(api_player) do
     cs2_game = get_in(api_player, ["games", "cs2"]) || %{}
 

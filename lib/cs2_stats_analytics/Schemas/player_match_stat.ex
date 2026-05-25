@@ -1,4 +1,11 @@
 defmodule Cs2StatsAnalytics.Schemas.PlayerMatchStat do
+  @moduledoc """
+  Ecto schema for one player's stat line in one match.
+
+  This table is the many-to-many join between players and matches with the
+  additional performance metrics needed by the dashboard.
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
 

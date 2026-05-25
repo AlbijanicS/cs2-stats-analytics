@@ -1,26 +1,42 @@
 defmodule Cs2StatsAnalytics.Analytics do
+  @moduledoc """
+  Public analytics context for the CS2/FACEIT dashboard.
+
+  This module coordinates the use-case flow: read dashboard data from the
+  database when it is fresh enough, fetch fake/remote FACEIT-shaped data when
+  local data is missing or stale, normalize it, persist it, and return a
+  dashboard-friendly data structure.
+
+  UI modules should call this context instead of reaching into FACEIT clients,
+  normalizers, importers, or schemas directly.
+  """
+
   import Ecto.Query
-  alias Cs2StatsAnalytics.Schemas.{Player, PlayerMatchStat}
+
   alias Cs2StatsAnalytics.Faceit.Normalizer
   alias Cs2StatsAnalytics.PlayerMatchImporter
   alias Cs2StatsAnalytics.Repo
+  alias Cs2StatsAnalytics.Schemas.{Player, PlayerMatchStat}
 
   @fresh_for_seconds 15 * 60
 
   def get_or_sync_dashboard(nickname, limit \\ 30) do
-    case fetch_player_by_nickname(nickname) do
-      {:ok, player} ->
-        if fresh?(player) do
-          case get_dashboard(nickname) do
-            {:error, :no_recent_stats} -> sync_and_get_dashboard(nickname, limit)
-            result -> result
-          end
+    case get_dashboard(nickname, limit) do
+      {:ok, dashboard} ->
+        if fresh?(dashboard.player) do
+          {:ok, dashboard}
         else
           sync_and_get_dashboard(nickname, limit)
         end
 
       {:error, :player_not_found} ->
         sync_and_get_dashboard(nickname, limit)
+
+      {:error, :no_recent_stats} ->
+        sync_and_get_dashboard(nickname, limit)
+
+      error ->
+        error
     end
   end
 
@@ -28,15 +44,33 @@ defmodule Cs2StatsAnalytics.Analytics do
     client = faceit_client()
 
     with {:ok, api_player} <- client.get_player_by_nickname(nickname),
-         {:ok, player_attrs} <-
-           api_player
-           |> Normalizer.normalize_player(),
+         {:ok, player_attrs} <- Normalizer.normalize_player(api_player),
          player_attrs = Map.put(player_attrs, :last_synced_at, now()),
          {:ok, history} <- client.get_player_history(player_attrs.faceit_player_id, limit) do
       history
       |> Map.get("items", [])
       |> Enum.take(limit)
       |> import_matches(player_attrs)
+    end
+  end
+
+  def get_dashboard(nickname, limit \\ 30) do
+    with {:ok, player} <- fetch_player_by_nickname(nickname),
+         {:ok, recent_stats} <- fetch_recent_stats(player, limit) do
+      {:ok,
+       %{
+         player: player,
+         recent_stats: recent_stats,
+         averages: calculate_averages(recent_stats),
+         latest_match_summary: latest_match_summary(recent_stats),
+         trends: build_trends(recent_stats)
+       }}
+    end
+  end
+
+  defp sync_and_get_dashboard(nickname, limit) do
+    with {:ok, _imports} <- sync_player(nickname, limit) do
+      get_dashboard(nickname, limit)
     end
   end
 
@@ -73,64 +107,12 @@ defmodule Cs2StatsAnalytics.Analytics do
     end
   end
 
-  def get_dashboard(nickname) do
-    with {:ok, player} <- fetch_player_by_nickname(nickname),
-         {:ok, recent_stats} <- fetch_recent_stats(player, 30) do
-      {:ok,
-       %{
-         player: player,
-         recent_stats: recent_stats,
-         averages: calculate_averages(recent_stats),
-         latest_match_summary: latest_match_summary(recent_stats),
-         trends: build_trends(recent_stats)
-       }}
+  defp fetch_player_by_nickname(nickname) do
+    case Repo.get_by(Player, nickname: nickname) do
+      nil -> {:error, :player_not_found}
+      player -> {:ok, player}
     end
   end
-
-  defp sync_and_get_dashboard(nickname, limit) do
-    with {:ok, _imported_matches} <- sync_player(nickname, limit) do
-      get_dashboard(nickname)
-    end
-  end
-
-  defp build_trends(stats) do
-    stats
-    |> Enum.reverse()
-    |> Enum.with_index(1)
-    |> Enum.map(fn {stat, index} ->
-      %{
-        label: "Match #{index}",
-        map: stat.match.map,
-        finished_at: stat.match.finished_at,
-        kills: stat.kills,
-        deaths: stat.deaths,
-        assists: stat.assists,
-        adr: stat.adr,
-        kd_ratio: stat.kd_ratio,
-        headshot_percent: stat.headshot_percent,
-        won: stat.won
-      }
-    end)
-  end
-
-  defp latest_match_summary([latest_stat | _rest]) do
-    match = latest_stat.match
-
-    %{
-      map: match.map,
-      finished_at: match.finished_at,
-      score_faction1: match.score_faction1,
-      score_faction2: match.score_faction2,
-      won: latest_stat.won,
-      kills: latest_stat.kills,
-      deaths: latest_stat.deaths,
-      assists: latest_stat.assists,
-      adr: latest_stat.adr,
-      kd_ratio: latest_stat.kd_ratio
-    }
-  end
-
-  defp latest_match_summary([]), do: nil
 
   defp fetch_recent_stats(player, limit) do
     stats =
@@ -145,13 +127,6 @@ defmodule Cs2StatsAnalytics.Analytics do
     case stats do
       [] -> {:error, :no_recent_stats}
       stats -> {:ok, stats}
-    end
-  end
-
-  defp fetch_player_by_nickname(nickname) do
-    case Repo.get_by(Player, nickname: nickname) do
-      nil -> {:error, :player_not_found}
-      player -> {:ok, player}
     end
   end
 
@@ -196,6 +171,45 @@ defmodule Cs2StatsAnalytics.Analytics do
     |> Kernel./(total)
     |> Kernel.*(100)
     |> Float.round(1)
+  end
+
+  defp latest_match_summary([latest_stat | _rest]) do
+    match = latest_stat.match
+
+    %{
+      map: match.map,
+      finished_at: match.finished_at,
+      score_faction1: match.score_faction1,
+      score_faction2: match.score_faction2,
+      won: latest_stat.won,
+      kills: latest_stat.kills,
+      deaths: latest_stat.deaths,
+      assists: latest_stat.assists,
+      adr: latest_stat.adr,
+      kd_ratio: latest_stat.kd_ratio
+    }
+  end
+
+  defp latest_match_summary([]), do: nil
+
+  defp build_trends(stats) do
+    stats
+    |> Enum.reverse()
+    |> Enum.with_index(1)
+    |> Enum.map(fn {stat, index} ->
+      %{
+        label: "Match #{index}",
+        map: stat.match.map,
+        finished_at: stat.match.finished_at,
+        kills: stat.kills,
+        deaths: stat.deaths,
+        assists: stat.assists,
+        adr: stat.adr,
+        kd_ratio: stat.kd_ratio,
+        headshot_percent: stat.headshot_percent,
+        won: stat.won
+      }
+    end)
   end
 
   defp fresh?(%Player{last_synced_at: nil}), do: false

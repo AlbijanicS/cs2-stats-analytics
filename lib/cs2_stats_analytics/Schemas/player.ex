@@ -1,4 +1,11 @@
 defmodule Cs2StatsAnalytics.Schemas.Player do
+  @moduledoc """
+  Ecto schema for a FACEIT player tracked by the application.
+
+  Players are identified by the stable FACEIT player id and can have many
+  imported match stat rows through `PlayerMatchStat`.
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
 
