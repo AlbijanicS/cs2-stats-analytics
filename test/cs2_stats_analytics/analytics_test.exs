@@ -68,6 +68,32 @@ defmodule Cs2StatsAnalytics.AnalyticsTest do
     assert dashboard.averages.matches_played == 3
   end
 
+  test "get_dashboard_refresh_state/2 returns fresh local rows without fetching when fewer than the requested limit exist" do
+    assert {:ok, _imported_matches} = Analytics.sync_player("stefan", 3)
+
+    Application.put_env(:cs2_stats_analytics, :faceit_client, ErrorClient)
+
+    assert {:ok, :fresh, dashboard} = Analytics.get_dashboard_refresh_state("stefan", 10)
+    assert dashboard.player.nickname == "stefan"
+    assert dashboard.averages.matches_played == 3
+  end
+
+  test "get_dashboard_refresh_state/2 returns stale local rows outside the freshness window" do
+    assert {:ok, _imported_matches} = Analytics.sync_player("stefan", 3)
+    player = Repo.get_by!(Player, nickname: "stefan")
+    stale_at = DateTime.utc_now() |> DateTime.add(-16, :minute) |> DateTime.truncate(:second)
+
+    player
+    |> Player.changeset(%{last_synced_at: stale_at})
+    |> Repo.update!()
+
+    Application.put_env(:cs2_stats_analytics, :faceit_client, ErrorClient)
+
+    assert {:ok, :stale, dashboard} = Analytics.get_dashboard_refresh_state("stefan", 10)
+    assert dashboard.player.nickname == "stefan"
+    assert dashboard.averages.matches_played == 3
+  end
+
   test "get_or_sync_dashboard/2 fetches when the player is missing locally" do
     assert {:ok, dashboard} = Analytics.get_or_sync_dashboard("stefan", 3)
 

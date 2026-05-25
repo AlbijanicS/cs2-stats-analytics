@@ -20,6 +20,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
       |> assign(:dashboard, nil)
       |> assign(:status, :empty)
       |> assign(:error, nil)
+      |> assign(:loading_nickname, nil)
 
     {:ok, socket}
   end
@@ -61,6 +62,10 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
 
         <p :if={@status == :loading} id="dashboard-loading" class="mt-4 text-sm text-zinc-600">
           Fetching stats...
+        </p>
+
+        <p :if={@status == :refreshing} id="dashboard-refreshing" class="mt-4 text-sm text-zinc-600">
+          Updating cached stats...
         </p>
 
         <p :if={@error} id="dashboard-error" class="mt-4 text-sm text-red-600">
@@ -242,53 +247,107 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
       case nickname do
         "" ->
           socket
+          |> cancel_async(:load_dashboard)
           |> assign(:form, form)
           |> assign(:dashboard, nil)
           |> assign(:error, "Enter a FACEIT nickname.")
           |> assign(:status, :error)
+          |> assign(:loading_nickname, nil)
 
         nickname ->
           socket
+          |> cancel_async(:load_dashboard)
           |> assign(:form, form)
-          |> assign(:dashboard, nil)
-          |> assign(:error, nil)
-          |> assign(:status, :loading)
-          |> start_async(:load_dashboard, fn ->
-            Analytics.get_or_sync_dashboard(nickname, @dashboard_match_limit)
-          end)
+          |> load_dashboard(nickname)
       end
 
     {:noreply, socket}
   end
 
-  def handle_async(:load_dashboard, {:ok, {:ok, dashboard}}, socket) do
+  defp load_dashboard(socket, nickname) do
+    case Analytics.get_dashboard_refresh_state(nickname, @dashboard_match_limit) do
+      {:ok, :fresh, dashboard} ->
+        socket
+        |> assign(:dashboard, dashboard)
+        |> assign(:error, nil)
+        |> assign(:status, :loaded)
+        |> assign(:loading_nickname, nil)
+
+      {:ok, :stale, dashboard} ->
+        socket
+        |> assign(:dashboard, dashboard)
+        |> assign(:error, nil)
+        |> assign(:status, :refreshing)
+        |> assign(:loading_nickname, nickname)
+        |> start_async(:load_dashboard, fn ->
+          {nickname, Analytics.get_or_sync_dashboard(nickname, @dashboard_match_limit)}
+        end)
+
+      {:error, _reason} ->
+        socket
+        |> assign(:dashboard, nil)
+        |> assign(:error, nil)
+        |> assign(:status, :loading)
+        |> assign(:loading_nickname, nickname)
+        |> start_async(:load_dashboard, fn ->
+          {nickname, Analytics.get_or_sync_dashboard(nickname, @dashboard_match_limit)}
+        end)
+    end
+  end
+
+  def handle_async(:load_dashboard, {:ok, {nickname, result}}, socket) do
+    if socket.assigns.loading_nickname == nickname do
+      handle_dashboard_result(result, socket)
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async(:load_dashboard, {:exit, {:shutdown, :cancel}}, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_async(:load_dashboard, {:exit, :cancel}, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_async(:load_dashboard, {:exit, _reason}, socket) do
+    socket = assign_async_error(socket, :unexpected_exit)
+
+    {:noreply, socket}
+  end
+
+  defp handle_dashboard_result({:ok, dashboard}, socket) do
     socket =
       socket
       |> assign(:dashboard, dashboard)
       |> assign(:error, nil)
       |> assign(:status, :loaded)
+      |> assign(:loading_nickname, nil)
 
     {:noreply, socket}
   end
 
-  def handle_async(:load_dashboard, {:ok, {:error, reason}}, socket) do
+  defp handle_dashboard_result({:error, reason}, socket) do
     socket =
       socket
-      |> assign(:dashboard, nil)
-      |> assign(:error, error_message(reason))
-      |> assign(:status, :error)
+      |> assign_async_error(reason)
+      |> assign(:loading_nickname, nil)
 
     {:noreply, socket}
   end
 
-  def handle_async(:load_dashboard, {:exit, _reason}, socket) do
-    socket =
-      socket
-      |> assign(:dashboard, nil)
-      |> assign(:error, "Something went wrong while loading the dashboard.")
-      |> assign(:status, :error)
+  defp assign_async_error(%{assigns: %{dashboard: nil}} = socket, reason) do
+    socket
+    |> assign(:dashboard, nil)
+    |> assign(:error, error_message(reason))
+    |> assign(:status, :error)
+  end
 
-    {:noreply, socket}
+  defp assign_async_error(socket, reason) do
+    socket
+    |> assign(:error, refresh_error_message(reason))
+    |> assign(:status, :loaded)
   end
 
   defp trend_chart_points(dashboard) do
@@ -318,7 +377,11 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
   defp error_message(:player_history_not_found), do: "No recent FACEIT match history found."
   defp error_message(:match_stats_not_found), do: "Could not load match statistics."
   defp error_message(:no_recent_stats), do: "No recent stats are available for this player yet."
+  defp error_message(:unexpected_exit), do: "Something went wrong while loading the dashboard."
   defp error_message(_reason), do: "Could not load the dashboard."
+
+  defp refresh_error_message(_reason),
+    do: "Could not refresh the dashboard. Showing cached stats."
 
   attr :label, :string, required: true
   attr :value, :any, required: true

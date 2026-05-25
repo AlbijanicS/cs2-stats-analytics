@@ -68,6 +68,17 @@ defmodule Cs2StatsAnalytics.Analytics do
     end
   end
 
+  def get_dashboard_refresh_state(nickname, limit \\ 30) do
+    case get_dashboard(nickname, limit) do
+      {:ok, dashboard} ->
+        state = if fresh?(dashboard.player), do: :fresh, else: :stale
+        {:ok, state, dashboard}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   defp sync_and_get_dashboard(nickname, limit) do
     with {:ok, _imports} <- sync_player(nickname, limit) do
       get_dashboard(nickname, limit)
