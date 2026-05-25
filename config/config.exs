@@ -10,7 +10,7 @@ import Config
 config :cs2_stats_analytics,
   ecto_repos: [Cs2StatsAnalytics.Repo],
   generators: [timestamp_type: :utc_datetime],
-  faceit_client: Cs2StatsAnalytics.Faceit.FakeClient
+  faceit_client: Cs2StatsAnalytics.Faceit.Client
 
 # Configure the endpoint
 config :cs2_stats_analytics, Cs2StatsAnalyticsWeb.Endpoint,

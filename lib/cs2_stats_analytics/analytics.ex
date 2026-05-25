@@ -23,7 +23,7 @@ defmodule Cs2StatsAnalytics.Analytics do
   def get_or_sync_dashboard(nickname, limit \\ 30) do
     case get_dashboard(nickname, limit) do
       {:ok, dashboard} ->
-        if fresh?(dashboard.player) do
+        if fresh_dashboard?(dashboard, limit) do
           {:ok, dashboard}
         else
           sync_and_get_dashboard(nickname, limit)
@@ -71,7 +71,7 @@ defmodule Cs2StatsAnalytics.Analytics do
   def get_dashboard_refresh_state(nickname, limit \\ 30) do
     case get_dashboard(nickname, limit) do
       {:ok, dashboard} ->
-        state = if fresh?(dashboard.player), do: :fresh, else: :stale
+        state = if fresh_dashboard?(dashboard, limit), do: :fresh, else: :stale
         {:ok, state, dashboard}
 
       {:error, reason} ->
@@ -221,6 +221,10 @@ defmodule Cs2StatsAnalytics.Analytics do
         won: stat.won
       }
     end)
+  end
+
+  defp fresh_dashboard?(dashboard, limit) do
+    fresh?(dashboard.player) and length(dashboard.recent_stats) >= limit
   end
 
   defp fresh?(%Player{last_synced_at: nil}), do: false

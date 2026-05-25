@@ -77,7 +77,7 @@ defmodule Cs2StatsAnalytics.Faceit.Normalizer do
          triple_kills: triple_kills,
          quadro_kills: quadro_kills,
          penta_kills: penta_kills,
-         won: team_id == get_in(api_history_match, ["results", "winner"]),
+         won: won?(team_id, api_history_match, player_stats),
          raw_stats: player_stats
        }}
     end
@@ -95,10 +95,14 @@ defmodule Cs2StatsAnalytics.Faceit.Normalizer do
 
   defp parse_datetime(nil), do: {:ok, nil}
 
-  defp parse_datetime(datetime_string) do
+  defp parse_datetime(unix_seconds) when is_integer(unix_seconds) do
+    {:ok, DateTime.from_unix!(unix_seconds)}
+  end
+
+  defp parse_datetime(datetime_string) when is_binary(datetime_string) do
     case DateTime.from_iso8601(datetime_string) do
       {:ok, datetime, _offset} -> {:ok, datetime}
-      {:error, _reason} -> {:error, :invalid_finished_at}
+      {:error, _reason} -> {:error, :invalid_datetime}
     end
   end
 
@@ -161,4 +165,11 @@ defmodule Cs2StatsAnalytics.Faceit.Normalizer do
   end
 
   defp parse_float(_value), do: {:error, :invalid_float}
+
+  defp won?(_team_id, _api_history_match, %{"Result" => "1"}), do: true
+  defp won?(_team_id, _api_history_match, %{"Result" => "0"}), do: false
+
+  defp won?(team_id, api_history_match, _player_stats) do
+    team_id == get_in(api_history_match, ["results", "winner"])
+  end
 end

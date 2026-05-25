@@ -88,7 +88,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
   end
 
   test "renders fresh cached dashboard immediately without async refresh", %{conn: conn} do
-    assert {:ok, _imported_matches} = Analytics.sync_player("stefan", 3)
+    assert {:ok, _imported_matches} = Analytics.sync_player("stefan", 10)
     Application.put_env(:cs2_stats_analytics, :faceit_client, ErrorClient)
 
     {:ok, view, _html} = live(conn, ~p"/")
@@ -134,9 +134,8 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
            )
   end
 
-  test "keeps stale dashboard visible when background refresh fails", %{conn: conn} do
+  test "keeps incomplete dashboard visible when background refresh fails", %{conn: conn} do
     assert {:ok, _imported_matches} = Analytics.sync_player("stefan", 3)
-    mark_player_stale!("stefan")
     Application.put_env(:cs2_stats_analytics, :live_view_test_pid, self())
     Application.put_env(:cs2_stats_analytics, :faceit_client, FailingRefreshClient)
 
@@ -161,7 +160,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
   test "repeated search cancels in-flight dashboard load without showing a cancellation error", %{
     conn: conn
   } do
-    assert {:ok, _imported_matches} = Analytics.sync_player("stefan", 3)
+    assert {:ok, _imported_matches} = Analytics.sync_player("stefan", 10)
     Application.put_env(:cs2_stats_analytics, :live_view_test_pid, self())
     Application.put_env(:cs2_stats_analytics, :faceit_client, BlockingUnknownClient)
 

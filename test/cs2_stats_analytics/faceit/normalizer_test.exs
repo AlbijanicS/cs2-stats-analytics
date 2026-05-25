@@ -30,7 +30,7 @@ defmodule Cs2StatsAnalytics.Faceit.NormalizerTest do
 
     stats = %{"rounds" => [%{"round_stats" => %{"Map" => "de_mirage"}}]}
 
-    assert Normalizer.normalize_match(history_match, stats) == {:error, :invalid_finished_at}
+    assert Normalizer.normalize_match(history_match, stats) == {:error, :invalid_datetime}
   end
 
   test "normalize_player_match_stat/3 returns an error when player stats are missing" do
