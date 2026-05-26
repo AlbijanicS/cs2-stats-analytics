@@ -60,7 +60,12 @@ defmodule Cs2StatsAnalytics.Faceit.Normalizer do
          {:ok, mvps} <- parse_int(player_stats["MVPs"]),
          {:ok, triple_kills} <- parse_int(player_stats["Triple Kills"]),
          {:ok, quadro_kills} <- parse_int(player_stats["Quadro Kills"]),
-         {:ok, penta_kills} <- parse_int(player_stats["Penta Kills"]) do
+         {:ok, penta_kills} <- parse_int(player_stats["Penta Kills"]),
+         {:ok, first_kills} <- optional_int(player_stats["First Kills"]),
+         {:ok, entry_count} <- optional_int(player_stats["Entry Count"]),
+         {:ok, entry_wins} <- optional_int(player_stats["Entry Wins"]),
+         {:ok, entry_rate} <- optional_float(player_stats["Match Entry Rate"]),
+         {:ok, entry_success_rate} <- optional_float(player_stats["Match Entry Success Rate"]) do
       {:ok,
        %{
          team_id: team_id,
@@ -78,7 +83,12 @@ defmodule Cs2StatsAnalytics.Faceit.Normalizer do
          quadro_kills: quadro_kills,
          penta_kills: penta_kills,
          won: won?(team_id, api_history_match, player_stats),
-         raw_stats: player_stats
+         raw_stats: player_stats,
+         first_kills: first_kills,
+         entry_count: entry_count,
+         entry_wins: entry_wins,
+         entry_rate: entry_rate,
+         entry_success_rate: entry_success_rate
        }}
     end
   end
@@ -191,4 +201,12 @@ defmodule Cs2StatsAnalytics.Faceit.Normalizer do
   defp won?(team_id, api_history_match, _player_stats) do
     team_id == get_in(api_history_match, ["results", "winner"])
   end
+
+  defp optional_int(nil), do: {:ok, nil}
+  defp optional_int(""), do: {:ok, nil}
+  defp optional_int(value), do: parse_int(value)
+
+  defp optional_float(nil), do: {:ok, nil}
+  defp optional_float(""), do: {:ok, nil}
+  defp optional_float(value), do: parse_float(value)
 end

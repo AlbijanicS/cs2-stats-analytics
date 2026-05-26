@@ -81,11 +81,23 @@ defmodule Cs2StatsAnalytics.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["compile", "tailwind cs2_stats_analytics", "esbuild cs2_stats_analytics"],
+      "assets.setup": [
+        "tailwind.install --if-missing",
+        "esbuild.install --if-missing",
+        "cmd --cd assets npm install"
+      ],
+      "assets.build": [
+        "compile",
+        "tailwind cs2_stats_analytics",
+        "esbuild cs2_stats_analytics",
+        "cmd rm -rf priv/static/assets/flags",
+        "cmd cp -R assets/node_modules/flag-icons/flags priv/static/assets/flags"
+      ],
       "assets.deploy": [
         "tailwind cs2_stats_analytics --minify",
         "esbuild cs2_stats_analytics --minify",
+        "cmd rm -rf priv/static/assets/flags",
+        "cmd cp -R assets/node_modules/flag-icons/flags priv/static/assets/flags",
         "phx.digest"
       ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]

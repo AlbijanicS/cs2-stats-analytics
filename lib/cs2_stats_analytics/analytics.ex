@@ -158,6 +158,7 @@ defmodule Cs2StatsAnalytics.Analytics do
       avg_adr: average(stats, :adr),
       avg_headshot_percent: average(stats, :headshot_percent),
       avg_kd_ratio: average(stats, :kd_ratio),
+      avg_entry_success_percent: average_rate_percent(stats, :entry_success_rate),
       win_rate: percentage(wins, matches_played)
     }
   end
@@ -177,6 +178,25 @@ defmodule Cs2StatsAnalytics.Analytics do
         |> Enum.sum()
         |> Kernel./(length(values))
         |> Float.round(2)
+    end
+  end
+
+  defp average_rate_percent(stats, field) do
+    values =
+      stats
+      |> Enum.map(&Map.get(&1, field))
+      |> Enum.reject(&is_nil/1)
+
+    case values do
+      [] ->
+        nil
+
+      values ->
+        values
+        |> Enum.sum()
+        |> Kernel./(length(values))
+        |> Kernel.*(100)
+        |> Float.round(1)
     end
   end
 

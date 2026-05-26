@@ -53,7 +53,12 @@ defmodule Cs2StatsAnalytics.PlayerMatchImporter do
     :penta_kills,
     :won,
     :raw_stats,
-    :updated_at
+    :updated_at,
+    :first_kills,
+    :entry_count,
+    :entry_wins,
+    :entry_rate,
+    :entry_success_rate
   ]
 
   def import_player_match(%{player: player_attrs, match: match_attrs, stats: stats_attrs}) do

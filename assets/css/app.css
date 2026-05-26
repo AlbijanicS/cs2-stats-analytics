@@ -2,6 +2,7 @@
    https://tailwindcss.com/docs/configuration */
 
 @import "tailwindcss" source(none);
+@import "../node_modules/flag-icons/css/flag-icons.min.css";
 @source "../css";
 @source "../js";
 @source "../../lib/cs2_stats_analytics_web";

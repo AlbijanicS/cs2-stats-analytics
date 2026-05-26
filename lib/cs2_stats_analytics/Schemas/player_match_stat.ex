@@ -32,6 +32,11 @@ defmodule Cs2StatsAnalytics.Schemas.PlayerMatchStat do
     field :penta_kills, :integer
     field :won, :boolean
     field :raw_stats, :map
+    field :first_kills, :integer
+    field :entry_count, :integer
+    field :entry_wins, :integer
+    field :entry_rate, :float
+    field :entry_success_rate, :float
 
     timestamps(type: :utc_datetime)
   end
@@ -56,7 +61,12 @@ defmodule Cs2StatsAnalytics.Schemas.PlayerMatchStat do
       :quadro_kills,
       :penta_kills,
       :won,
-      :raw_stats
+      :raw_stats,
+      :first_kills,
+      :entry_count,
+      :entry_wins,
+      :entry_rate,
+      :entry_success_rate
     ])
     |> validate_required([:player_id, :match_id])
     |> foreign_key_constraint(:player_id)

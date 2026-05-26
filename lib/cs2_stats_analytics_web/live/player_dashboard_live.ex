@@ -11,7 +11,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
 
   alias Cs2StatsAnalytics.Analytics
 
-  @dashboard_match_limit 10
+  @dashboard_match_limit 30
 
   def mount(_params, _session, socket) do
     socket =
@@ -131,12 +131,21 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
                 <div class="min-w-0">
                   <p class="text-sm text-zinc-400">Player</p>
 
-                  <p class="truncate text-xl font-bold text-white">
-                    {@dashboard.player.nickname}
-                  </p>
+                  <div class="flex min-w-0 items-center gap-2">
+                    <p class="truncate text-xl font-bold text-white">
+                      {@dashboard.player.nickname}
+                    </p>
+
+                    <img
+                      :if={country_code(@dashboard.player.country) != ""}
+                      src={flag_icon_path(@dashboard.player.country)}
+                      alt={"#{country_code(@dashboard.player.country)} flag"}
+                      class="h-[18px] w-6 shrink-0 object-cover"
+                    />
+                  </div>
 
                   <div class="mt-3 flex flex-wrap items-center gap-2">
-                    <span class="rounded-full bg-orange-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                    <span class={level_badge_class(@dashboard.player.skill_level)}>
                       Level {@dashboard.player.skill_level || "?"}
                     </span>
 
@@ -145,17 +154,10 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
                     </span>
 
                     <span
-                      :if={@dashboard.player.country}
-                      class="rounded-full border border-zinc-700 px-3 py-1 text-xs font-medium uppercase text-zinc-300"
-                    >
-                      {@dashboard.player.country}
-                    </span>
-
-                    <span
                       :if={@dashboard.player.country_rank}
                       class="rounded-full border border-orange-500/40 bg-orange-500/10 px-3 py-1 text-xs font-semibold uppercase text-orange-300"
                     >
-                      {"##{@dashboard.player.country_rank} #{@dashboard.player.country}"}
+                      {"##{@dashboard.player.country_rank} #{country_code(@dashboard.player.country)}"}
                     </span>
                   </div>
                 </div>
@@ -173,7 +175,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
               </div>
 
               <div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-6">
-                <.stat_card label="Matches" value={@dashboard.averages.matches_played} />
+                <.stat_card label="Entry rate" value={entry_success_value(@dashboard)} />
                 <.stat_card label="Win rate" value={"#{@dashboard.averages.win_rate}%"} />
                 <.stat_card label="Avg K/D" value={@dashboard.averages.avg_kd_ratio} />
                 <.stat_card label="Avg HS%" value={avg_headshot_percent(@dashboard)} />
@@ -542,6 +544,31 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
     """
   end
 
+  defp level_badge_class(skill_level) do
+    base = "rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide text-white shadow-sm"
+
+    color =
+      case skill_level do
+        10 -> "bg-red-600 shadow-red-950/30"
+        9 -> "bg-orange-700 shadow-orange-950/30"
+        8 -> "bg-orange-600 shadow-orange-950/30"
+        level when level in [6, 7] -> "bg-yellow-500 text-zinc-950 shadow-yellow-950/20"
+        5 -> "bg-lime-500 text-zinc-950 shadow-lime-950/20"
+        4 -> "bg-lime-600 shadow-lime-950/20"
+        level when level in [2, 3] -> "bg-green-600 shadow-green-950/20"
+        1 -> "bg-zinc-700 shadow-black/20"
+        _level -> "bg-zinc-700 shadow-black/20"
+      end
+
+    "#{base} #{color}"
+  end
+
+  defp country_code(nil), do: ""
+  defp country_code(country_code), do: country_code |> String.trim() |> String.upcase()
+
+  defp flag_icon_path(country_code),
+    do: "/assets/flags/4x3/#{String.downcase(String.trim(country_code))}.svg"
+
   defp avatar_available?(nil), do: false
   defp avatar_available?(""), do: false
   defp avatar_available?(_avatar_url), do: true
@@ -556,5 +583,11 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
       nil -> "?"
       initial -> String.upcase(initial)
     end
+  end
+
+  defp entry_success_value(%{averages: %{avg_entry_success_percent: nil}}), do: "--"
+
+  defp entry_success_value(%{averages: %{avg_entry_success_percent: value}}) do
+    "#{value}%"
   end
 end
