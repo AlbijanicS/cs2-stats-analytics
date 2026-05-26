@@ -35,8 +35,8 @@ defmodule Cs2StatsAnalyticsWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <main class="min-h-screen bg-white px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-7xl">
+    <main class="min-h-screen bg-zinc-950 text-slate-950">
+      <div>
         {render_slot(@inner_block)}
       </div>
     </main>

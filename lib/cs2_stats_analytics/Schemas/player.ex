@@ -18,6 +18,7 @@ defmodule Cs2StatsAnalytics.Schemas.Player do
     field :skill_level, :integer
     field :faceit_elo, :integer
     field :last_synced_at, :utc_datetime
+    field :country_rank, :integer
 
     has_many :player_match_stats, Cs2StatsAnalytics.Schemas.PlayerMatchStat
 
@@ -37,7 +38,8 @@ defmodule Cs2StatsAnalytics.Schemas.Player do
       :country,
       :skill_level,
       :faceit_elo,
-      :last_synced_at
+      :last_synced_at,
+      :country_rank
     ])
     |> validate_required([:faceit_player_id, :nickname])
     |> unique_constraint(:faceit_player_id)

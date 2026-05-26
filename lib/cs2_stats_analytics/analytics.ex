@@ -45,7 +45,12 @@ defmodule Cs2StatsAnalytics.Analytics do
 
     with {:ok, api_player} <- client.get_player_by_nickname(nickname),
          {:ok, player_attrs} <- Normalizer.normalize_player(api_player),
-         player_attrs = Map.put(player_attrs, :last_synced_at, now()),
+         ranking_attrs =
+           fetch_country_ranking_attrs(client, api_player, player_attrs.faceit_player_id),
+         player_attrs =
+           player_attrs
+           |> Map.merge(ranking_attrs)
+           |> Map.put(:last_synced_at, now()),
          {:ok, history} <- client.get_player_history(player_attrs.faceit_player_id, limit) do
       history
       |> Map.get("items", [])
@@ -221,6 +226,32 @@ defmodule Cs2StatsAnalytics.Analytics do
         won: stat.won
       }
     end)
+  end
+
+  defp fetch_country_ranking_attrs(client, api_player, faceit_player_id) do
+    region = get_in(api_player, ["games", "cs2", "region"])
+    country = api_player["country"]
+
+    if ranking_lookup_possible?(client, region, country) do
+      case client.get_player_ranking(faceit_player_id, region, country) do
+        {:ok, api_ranking} ->
+          case Normalizer.normalize_ranking(api_ranking, faceit_player_id) do
+            {:ok, ranking_attrs} -> Map.take(ranking_attrs, [:country_rank])
+            {:error, _reason} -> %{}
+          end
+
+        {:error, _reason} ->
+          %{}
+      end
+    else
+      %{}
+    end
+  end
+
+  defp ranking_lookup_possible?(client, region, country) do
+    function_exported?(client, :get_player_ranking, 3) and
+      is_binary(region) and region != "" and
+      is_binary(country) and country != ""
   end
 
   defp fresh_dashboard?(dashboard, limit) do

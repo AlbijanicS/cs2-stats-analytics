@@ -26,6 +26,18 @@ defmodule Cs2StatsAnalytics.Faceit.Client do
     end
   end
 
+  def get_player_ranking(player_id, region, country \\ nil) do
+    query_params =
+      [country: country]
+      |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" end)
+
+    case get("/rankings/games/#{@game}/regions/#{region}/players/#{player_id}", query_params) do
+      {:ok, body} -> {:ok, body}
+      {:error, :not_found} -> {:error, :player_ranking_not_found}
+      error -> error
+    end
+  end
+
   defp get(path, query_params \\ []) do
     with {:ok, api_key} <- api_key() do
       url = build_url(path, query_params)

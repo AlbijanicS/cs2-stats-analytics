@@ -28,213 +28,314 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <h1 class="text-3xl font-bold text-zinc-900">
-          CS2 FACEIT Analytics
-        </h1>
-
-        <p class="mt-2 text-zinc-600">
-          Search a FACEIT nickname to view recent CS2 performance.
-        </p>
-
-        <.form
-          for={@form}
-          id="player-search-form"
-          phx-submit="search"
-          class="mt-6 flex flex-col gap-3 sm:flex-row"
+      <div class="min-h-screen bg-zinc-950 p-3 shadow-2xl shadow-black/30 lg:flex lg:gap-5">
+        <aside
+          id="dashboard-sidebar"
+          class="rounded-xl border border-zinc-800 bg-black p-4 text-white shadow-lg shadow-black/40 lg:sticky lg:top-3 lg:h-[calc(100vh-1.5rem)] lg:w-64 lg:shrink-0"
         >
-          <.input
-            field={@form[:nickname]}
-            type="text"
-            placeholder="Enter FACEIT nickname"
-            class="w-full rounded-lg border border-zinc-300 px-4 py-2 sm:flex-1"
-          />
+          <div class="flex items-center justify-between gap-3 lg:block">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.24em] text-orange-400">
+                FACEIT
+              </p>
+              <h1 class="mt-1 text-2xl font-bold tracking-tight">CS2 Analytics</h1>
+            </div>
+          </div>
 
-          <.button
-            type="submit"
-            variant="primary"
-            phx-disable-with="Fetching..."
-            class="rounded-lg bg-zinc-900 px-5 py-2 font-medium text-white"
+          <nav
+            id="dashboard-nav"
+            class="mt-5 grid grid-cols-2 gap-2 text-sm font-medium sm:grid-cols-4 lg:grid-cols-1"
           >
-            Find stats
-          </.button>
-        </.form>
+            <.nav_item icon="hero-squares-2x2" label="Dashboard" active />
+            <.nav_item icon="hero-table-cells" label="Matches" />
+            <.nav_item icon="hero-bolt" label="Aim" />
+            <.nav_item icon="hero-wrench-screwdriver" label="Utility" />
+            <.nav_item icon="hero-chart-bar-square" label="Impact" />
+            <.nav_item icon="hero-map" label="Maps" />
+            <.nav_item icon="hero-cog-6-tooth" label="Settings" />
+          </nav>
+        </aside>
 
-        <p :if={@status == :loading} id="dashboard-loading" class="mt-4 text-sm text-zinc-600">
-          Fetching stats...
-        </p>
+        <div class="mt-4 min-w-0 flex-1 lg:mt-0">
+          <section class="rounded-xl border border-zinc-800 bg-zinc-900 p-4 shadow-lg shadow-black/20 sm:p-5">
+            <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <p class="text-sm font-medium text-orange-400">Player dashboard</p>
+                <h2 class="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                  Recent CS2 performance
+                </h2>
+              </div>
 
-        <p :if={@status == :refreshing} id="dashboard-refreshing" class="mt-4 text-sm text-zinc-600">
-          Updating cached stats...
-        </p>
+              <.form
+                for={@form}
+                id="player-search-form"
+                phx-submit="search"
+                class="flex w-full flex-col gap-3 sm:flex-row xl:max-w-xl"
+              >
+                <.input
+                  field={@form[:nickname]}
+                  type="text"
+                  placeholder="Enter FACEIT nickname"
+                  class="h-11 w-full rounded-lg border border-zinc-700 bg-black px-4 text-sm text-white shadow-inner shadow-black/40 outline-none transition placeholder:text-zinc-500 focus:border-orange-500 focus:bg-zinc-950 focus:ring-4 focus:ring-orange-500/15 sm:flex-1"
+                />
 
-        <p :if={@error} id="dashboard-error" class="mt-4 text-sm text-red-600">
-          {@error}
-        </p>
-      </section>
+                <.button
+                  type="submit"
+                  variant="primary"
+                  phx-disable-with="Fetching..."
+                  class="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-orange-600 px-5 text-sm font-semibold text-white shadow-sm shadow-orange-950/30 transition hover:bg-orange-500 disabled:pointer-events-none disabled:opacity-60"
+                >
+                  <.icon name="hero-magnifying-glass" class="size-4" /> Search
+                </.button>
+              </.form>
+            </div>
 
-      <section
-        :if={@dashboard}
-        id="dashboard-summary"
-        class="mt-6 grid gap-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm sm:grid-cols-3 lg:grid-cols-6"
-      >
-        <.stat_card label="Player" value={@dashboard.player.nickname} />
-        <.stat_card label="Matches" value={@dashboard.averages.matches_played} />
-        <.stat_card label="Win rate" value={"#{@dashboard.averages.win_rate}%"} />
-        <.stat_card label="Avg Kills" value={@dashboard.averages.avg_kills} />
-        <.stat_card label="Avg ADR" value={@dashboard.averages.avg_adr} />
-        <.stat_card label="Avg K/D" value={@dashboard.averages.avg_kd_ratio} />
-      </section>
-
-      <section
-        :if={@dashboard}
-        id="latest-match-summary"
-        class="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
-      >
-        <h2 class="text-xl font-semibold text-zinc-900">
-          Latest Match
-        </h2>
-
-        <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <div>
-            <p class="text-sm text-zinc-500">Map</p>
-            <p class="mt-1 font-medium text-zinc-900">
-              {@dashboard.latest_match_summary.map}
+            <p :if={@status == :loading} id="dashboard-loading" class="mt-4 text-sm text-zinc-300">
+              Fetching stats...
             </p>
-          </div>
 
-          <div>
-            <p class="text-sm text-zinc-500">Result</p>
-            <p class="mt-1 font-medium text-zinc-900">
-              {if @dashboard.latest_match_summary.won, do: "Win", else: "Loss"}
+            <p
+              :if={@status == :refreshing}
+              id="dashboard-refreshing"
+              class="mt-4 flex items-center gap-2 text-sm text-zinc-300"
+            >
+              <.icon name="hero-arrow-path" class="size-4 text-orange-400 motion-safe:animate-spin" />
+              Updating cached stats...
             </p>
-          </div>
 
-          <div>
-            <p class="text-sm text-zinc-500">K / D / A</p>
-            <p class="mt-1 font-medium text-zinc-900">
-              {@dashboard.latest_match_summary.kills} / {@dashboard.latest_match_summary.deaths} / {@dashboard.latest_match_summary.assists}
+            <p :if={@error} id="dashboard-error" class="mt-4 text-sm font-medium text-orange-300">
+              {@error}
             </p>
-          </div>
+          </section>
 
-          <div>
-            <p class="text-sm text-zinc-500">ADR</p>
-            <p class="mt-1 font-medium text-zinc-900">
-              {@dashboard.latest_match_summary.adr}
-            </p>
-          </div>
-
-          <div>
-            <p class="text-sm text-zinc-500">K/D</p>
-            <p class="mt-1 font-medium text-zinc-900">
-              {@dashboard.latest_match_summary.kd_ratio}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section
-        :if={@dashboard}
-        id="performance-trend-chart-section"
-        class="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
-      >
-        <h2 class="text-xl font-semibold text-zinc-900">
-          ADR + K/D Trend
-        </h2>
-
-        <p class="mt-1 text-sm text-zinc-500">
-          ADR and K/D trend from oldest match to newest match.
-        </p>
-
-        <div class="mt-5 h-72">
-          <canvas
-            id="performance-trend-chart"
-            phx-hook="AdrTrendChart"
-            phx-update="ignore"
-            data-points={trend_chart_points(@dashboard)}
-            class="h-full w-full"
+          <section
+            :if={@dashboard}
+            id="dashboard-summary"
+            class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,2.4fr)]"
           >
-          </canvas>
-        </div>
-      </section>
+            <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg shadow-black/20">
+              <div class="flex items-center gap-4">
+                <div class="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-orange-600 text-xl font-bold text-white shadow-lg shadow-orange-950/30">
+                  <img
+                    :if={avatar_available?(@dashboard.player.avatar_url)}
+                    src={@dashboard.player.avatar_url}
+                    alt={"#{@dashboard.player.nickname} avatar"}
+                    class="h-full w-full object-cover"
+                  />
 
-      <section
-        :if={@dashboard}
-        id="aim-trend-chart-section"
-        class="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
-      >
-        <h2 class="text-xl font-semibold text-zinc-900">
-          Aim Trend
-        </h2>
+                  <span :if={!avatar_available?(@dashboard.player.avatar_url)}>
+                    {player_initial(@dashboard.player.nickname)}
+                  </span>
+                </div>
 
-        <p class="mt-1 text-sm text-zinc-500">
-          Headshot percentage from oldest match to newest match.
-        </p>
+                <div class="min-w-0">
+                  <p class="text-sm text-zinc-400">Player</p>
 
-        <div class="mt-5 h-72">
-          <canvas
-            id="aim-trend-chart"
-            phx-hook="HeadshotTrendChart"
-            phx-update="ignore"
-            data-points={aim_chart_points(@dashboard)}
-            class="h-full w-full"
+                  <p class="truncate text-xl font-bold text-white">
+                    {@dashboard.player.nickname}
+                  </p>
+
+                  <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <span class="rounded-full bg-orange-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                      Level {@dashboard.player.skill_level || "?"}
+                    </span>
+
+                    <span class="rounded-full border border-zinc-700 px-3 py-1 text-xs font-medium text-zinc-300">
+                      {@dashboard.player.faceit_elo || "?"} ELO
+                    </span>
+
+                    <span
+                      :if={@dashboard.player.country}
+                      class="rounded-full border border-zinc-700 px-3 py-1 text-xs font-medium uppercase text-zinc-300"
+                    >
+                      {@dashboard.player.country}
+                    </span>
+
+                    <span
+                      :if={@dashboard.player.country_rank}
+                      class="rounded-full border border-orange-500/40 bg-orange-500/10 px-3 py-1 text-xs font-semibold uppercase text-orange-300"
+                    >
+                      {"##{@dashboard.player.country_rank} #{@dashboard.player.country}"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg shadow-black/20">
+              <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p class="text-sm font-medium text-zinc-400">Average stats</p>
+                  <h2 class="text-xl font-bold text-white">
+                    Past {@dashboard.averages.matches_played} matches
+                  </h2>
+                </div>
+              </div>
+
+              <div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-6">
+                <.stat_card label="Matches" value={@dashboard.averages.matches_played} />
+                <.stat_card label="Win rate" value={"#{@dashboard.averages.win_rate}%"} />
+                <.stat_card label="Avg K/D" value={@dashboard.averages.avg_kd_ratio} />
+                <.stat_card label="Avg HS%" value={avg_headshot_percent(@dashboard)} />
+                <.stat_card label="Avg Kills" value={@dashboard.averages.avg_kills} />
+                <.stat_card label="Avg ADR" value={@dashboard.averages.avg_adr} />
+              </div>
+            </div>
+          </section>
+
+          <div :if={@dashboard} class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
+            <section
+              id="performance-trend-chart-section"
+              class="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg shadow-black/20"
+            >
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 class="text-xl font-semibold text-white">
+                    ADR + K/D Trend
+                  </h2>
+
+                  <p class="mt-1 text-sm text-zinc-400">
+                    ADR and K/D trend from oldest match to newest match.
+                  </p>
+                </div>
+
+                <div class="inline-flex rounded-lg border border-zinc-700 bg-black p-1 text-xs font-semibold text-zinc-400">
+                  <span class="rounded-md bg-orange-600 px-3 py-1.5 text-white shadow-sm">
+                    ADR / K/D
+                  </span>
+                  <span class="px-3 py-1.5">Aim</span>
+                </div>
+              </div>
+
+              <div class="mt-5 h-72">
+                <canvas
+                  id="performance-trend-chart"
+                  phx-hook="AdrTrendChart"
+                  phx-update="ignore"
+                  data-points={trend_chart_points(@dashboard)}
+                  class="h-full w-full"
+                >
+                </canvas>
+              </div>
+            </section>
+
+            <section
+              id="latest-match-summary"
+              class="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg shadow-black/20"
+            >
+              <p class="text-sm font-medium text-orange-400">Latest Match</p>
+              <h2 class="mt-1 text-2xl font-bold text-white">
+                {@dashboard.latest_match_summary.map}
+              </h2>
+
+              <div class="mt-5 space-y-4">
+                <.latest_metric
+                  label="Result"
+                  value={if @dashboard.latest_match_summary.won, do: "Win", else: "Loss"}
+                />
+                <.latest_metric
+                  label="K / D / A"
+                  value={"#{@dashboard.latest_match_summary.kills} / #{@dashboard.latest_match_summary.deaths} / #{@dashboard.latest_match_summary.assists}"}
+                />
+                <.latest_metric label="ADR" value={@dashboard.latest_match_summary.adr} />
+                <.latest_metric label="K/D" value={@dashboard.latest_match_summary.kd_ratio} />
+              </div>
+            </section>
+          </div>
+
+          <section
+            :if={@dashboard}
+            id="aim-trend-chart-section"
+            class="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg shadow-black/20"
           >
-          </canvas>
+            <h2 class="text-xl font-semibold text-white">
+              Headshot % Trend
+            </h2>
+
+            <p class="mt-1 text-sm text-zinc-400">
+              Headshot percentage from oldest match to newest match.
+            </p>
+
+            <div class="mt-5 h-72">
+              <canvas
+                id="aim-trend-chart"
+                phx-hook="HeadshotTrendChart"
+                phx-update="ignore"
+                data-points={aim_chart_points(@dashboard)}
+                class="h-full w-full"
+              >
+              </canvas>
+            </div>
+          </section>
+
+          <section
+            :if={@dashboard}
+            id="recent-matches"
+            class="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg shadow-black/20"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-xl font-semibold text-white">
+                Recent Matches
+              </h2>
+
+              <span class="rounded-full bg-orange-500/10 px-3 py-1 text-xs font-semibold text-orange-300">
+                Last {@dashboard.averages.matches_played}
+              </span>
+            </div>
+
+            <div class="mt-4 overflow-x-auto">
+              <table class="w-full min-w-[42rem] text-left text-sm">
+                <thead class="border-b border-zinc-800 text-xs uppercase tracking-wide text-zinc-500">
+                  <tr>
+                    <th class="py-3 pr-4 font-semibold">Map</th>
+                    <th class="py-3 pr-4 font-semibold">Result</th>
+                    <th class="py-3 pr-4 font-semibold">K / D / A</th>
+                    <th class="py-3 pr-4 font-semibold">ADR</th>
+                    <th class="py-3 pr-4 font-semibold">K/D</th>
+                    <th class="py-3 pr-4 font-semibold">HS%</th>
+                  </tr>
+                </thead>
+
+                <tbody class="divide-y divide-zinc-800 text-zinc-300">
+                  <tr :for={stat <- @dashboard.recent_stats} class="transition hover:bg-black/30">
+                    <td class="py-3 pr-4 font-semibold text-white">
+                      {stat.match.map}
+                    </td>
+
+                    <td class="py-3 pr-4">
+                      <span class={[
+                        "rounded-full px-2.5 py-1 text-xs font-semibold",
+                        if(stat.won,
+                          do: "bg-emerald-500/10 text-emerald-300",
+                          else: "bg-red-500/10 text-red-300"
+                        )
+                      ]}>
+                        {if stat.won, do: "Win", else: "Loss"}
+                      </span>
+                    </td>
+
+                    <td class="py-3 pr-4">
+                      {stat.kills} / {stat.deaths} / {stat.assists}
+                    </td>
+
+                    <td class="py-3 pr-4">
+                      {stat.adr}
+                    </td>
+
+                    <td class="py-3 pr-4">
+                      {stat.kd_ratio}
+                    </td>
+
+                    <td class="py-3 pr-4">
+                      {stat.headshot_percent}%
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
-      </section>
-
-      <section
-        :if={@dashboard}
-        id="recent-matches"
-        class="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
-      >
-        <h2 class="text-xl font-semibold text-zinc-900">
-          Recent Matches
-        </h2>
-
-        <div class="mt-4 overflow-x-auto">
-          <table class="w-full text-left text-sm">
-            <thead class="border-b border-zinc-200 text-zinc-500">
-              <tr>
-                <th class="py-2 pr-4 font-medium">Map</th>
-                <th class="py-2 pr-4 font-medium">Result</th>
-                <th class="py-2 pr-4 font-medium">K / D / A</th>
-                <th class="py-2 pr-4 font-medium">ADR</th>
-                <th class="py-2 pr-4 font-medium">K/D</th>
-                <th class="py-2 pr-4 font-medium">HS%</th>
-              </tr>
-            </thead>
-
-            <tbody class="divide-y divide-zinc-100">
-              <tr :for={stat <- @dashboard.recent_stats}>
-                <td class="py-3 pr-4 font-medium text-zinc-900">
-                  {stat.match.map}
-                </td>
-
-                <td class="py-3 pr-4">
-                  {if stat.won, do: "Win", else: "Loss"}
-                </td>
-
-                <td class="py-3 pr-4">
-                  {stat.kills} / {stat.deaths} / {stat.assists}
-                </td>
-
-                <td class="py-3 pr-4">
-                  {stat.adr}
-                </td>
-
-                <td class="py-3 pr-4">
-                  {stat.kd_ratio}
-                </td>
-
-                <td class="py-3 pr-4">
-                  {stat.headshot_percent}%
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      </div>
     </Layouts.app>
     """
   end
@@ -383,17 +484,77 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
   defp refresh_error_message(_reason),
     do: "Could not refresh the dashboard. Showing cached stats."
 
+  defp avg_headshot_percent(%{recent_stats: []}), do: "--"
+
+  defp avg_headshot_percent(%{recent_stats: recent_stats}) do
+    average =
+      recent_stats
+      |> Enum.map(& &1.headshot_percent)
+      |> Enum.sum()
+      |> Kernel./(length(recent_stats))
+      |> Float.round(1)
+
+    "#{average}%"
+  end
+
+  attr :icon, :string, required: true
+  attr :label, :string, required: true
+  attr :active, :boolean, default: false
+
+  defp nav_item(assigns) do
+    ~H"""
+    <span class={[
+      "flex items-center gap-2 rounded-lg px-3 py-2.5 transition",
+      if(@active,
+        do: "bg-orange-600 text-white shadow-sm shadow-orange-950/30",
+        else: "text-zinc-300 hover:bg-white/10 hover:text-white"
+      )
+    ]}>
+      <.icon name={@icon} class="size-4 shrink-0" />
+      <span class="truncate">{@label}</span>
+    </span>
+    """
+  end
+
+  attr :label, :string, required: true
+  attr :value, :any, required: true
+
+  defp latest_metric(assigns) do
+    ~H"""
+    <div class="rounded-lg border border-zinc-800 bg-black px-4 py-3">
+      <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{@label}</p>
+      <p class="mt-1 text-lg font-semibold text-white">{@value}</p>
+    </div>
+    """
+  end
+
   attr :label, :string, required: true
   attr :value, :any, required: true
 
   defp stat_card(assigns) do
     ~H"""
-    <div>
-      <p class="text-sm text-zinc-500">{@label}</p>
-      <p class="mt-1 text-xl font-semibold text-zinc-900">
+    <div class="rounded-lg border border-zinc-800 bg-black px-4 py-3">
+      <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{@label}</p>
+      <p class="mt-1 text-xl font-semibold text-white">
         {@value}
       </p>
     </div>
     """
+  end
+
+  defp avatar_available?(nil), do: false
+  defp avatar_available?(""), do: false
+  defp avatar_available?(_avatar_url), do: true
+
+  defp player_initial(nil), do: "?"
+
+  defp player_initial(nickname) do
+    nickname
+    |> String.trim()
+    |> String.first()
+    |> case do
+      nil -> "?"
+      initial -> String.upcase(initial)
+    end
   end
 end

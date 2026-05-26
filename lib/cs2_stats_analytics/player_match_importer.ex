@@ -20,7 +20,8 @@ defmodule Cs2StatsAnalytics.PlayerMatchImporter do
     :skill_level,
     :faceit_elo,
     :last_synced_at,
-    :updated_at
+    :updated_at,
+    :country_rank
   ]
 
   @match_replace_fields [

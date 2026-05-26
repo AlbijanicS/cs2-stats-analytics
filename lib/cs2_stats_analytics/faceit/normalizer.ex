@@ -83,6 +83,25 @@ defmodule Cs2StatsAnalytics.Faceit.Normalizer do
     end
   end
 
+  def normalize_ranking(api_ranking, faceit_player_id) do
+    api_ranking
+    |> Map.get("items", [])
+    |> Enum.find(fn item -> item["player_id"] == faceit_player_id end)
+    |> case do
+      nil ->
+        {:error, :player_ranking_not_found}
+
+      ranking ->
+        {:ok,
+         %{
+           country_rank: ranking["position"],
+           ranking_country: ranking["country"],
+           ranking_elo: ranking["faceit_elo"],
+           ranking_skill_level: ranking["game_skill_level"]
+         }}
+    end
+  end
+
   defp required(nil, reason), do: {:error, reason}
   defp required("", reason), do: {:error, reason}
   defp required(value, _reason), do: {:ok, value}
