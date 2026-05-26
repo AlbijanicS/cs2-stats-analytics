@@ -23,6 +23,9 @@ config :cs2_stats_analytics, Cs2StatsAnalyticsWeb.Endpoint,
 # In test we don't send emails
 config :cs2_stats_analytics, Cs2StatsAnalytics.Mailer, adapter: Swoosh.Adapters.Test
 
+config :cs2_stats_analytics,
+  faceit_client: Cs2StatsAnalytics.Faceit.FakeClient
+
 # Disable swoosh api client as it is only required for production adapters
 config :swoosh, :api_client, false
 

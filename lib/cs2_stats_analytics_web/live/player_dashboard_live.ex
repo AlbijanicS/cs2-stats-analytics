@@ -21,6 +21,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
       |> assign(:status, :empty)
       |> assign(:error, nil)
       |> assign(:loading_nickname, nil)
+      |> assign(:active_chart, :performance)
 
     {:ok, socket}
   end
@@ -62,7 +63,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
               <div>
                 <p class="text-sm font-medium text-orange-400">Player dashboard</p>
                 <h2 class="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                  Recent CS2 performance
+                  Recent Statistics
                 </h2>
               </div>
 
@@ -193,28 +194,54 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 class="text-xl font-semibold text-white">
-                    ADR + K/D Trend
+                    {chart_title(@active_chart)}
                   </h2>
 
                   <p class="mt-1 text-sm text-zinc-400">
-                    ADR and K/D trend from oldest match to newest match.
+                    {chart_description(@active_chart)}
                   </p>
                 </div>
 
                 <div class="inline-flex rounded-lg border border-zinc-700 bg-black p-1 text-xs font-semibold text-zinc-400">
-                  <span class="rounded-md bg-orange-600 px-3 py-1.5 text-white shadow-sm">
+                  <button
+                    type="button"
+                    id="performance-chart-tab"
+                    phx-click="select_chart"
+                    phx-value-chart="performance"
+                    class={chart_tab_class(@active_chart, :performance)}
+                  >
                     ADR / K/D
-                  </span>
-                  <span class="px-3 py-1.5">Aim</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    id="aim-chart-tab"
+                    phx-click="select_chart"
+                    phx-value-chart="aim"
+                    class={chart_tab_class(@active_chart, :aim)}
+                  >
+                    Aim
+                  </button>
                 </div>
               </div>
 
               <div class="mt-5 h-72">
                 <canvas
+                  :if={@active_chart == :performance}
                   id="performance-trend-chart"
                   phx-hook="AdrTrendChart"
                   phx-update="ignore"
                   data-points={trend_chart_points(@dashboard)}
+                  class="h-full w-full"
+                >
+                </canvas>
+
+                <canvas
+                  :if={@active_chart == :aim}
+                  id="aim-trend-chart"
+                  phx-hook="HeadshotTrendChart"
+                  phx-update="ignore"
+                  data-points={aim_chart_points(@dashboard)}
                   class="h-full w-full"
                 >
                 </canvas>
@@ -223,52 +250,39 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
 
             <section
               id="latest-match-summary"
-              class="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg shadow-black/20"
+              class="relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg shadow-black/20"
             >
-              <p class="text-sm font-medium text-orange-400">Latest Match</p>
-              <h2 class="mt-1 text-2xl font-bold text-white">
-                {@dashboard.latest_match_summary.map}
-              </h2>
+              <div
+                :if={map_image_url(@dashboard.latest_match_summary.map)}
+                class="absolute inset-0 bg-cover bg-center opacity-45"
+                style={"background-image: url('#{map_image_url(@dashboard.latest_match_summary.map)}')"}
+              >
+              </div>
 
-              <div class="mt-5 space-y-4">
-                <.latest_metric
-                  label="Result"
-                  value={if @dashboard.latest_match_summary.won, do: "Win", else: "Loss"}
-                />
-                <.latest_metric
-                  label="K / D / A"
-                  value={"#{@dashboard.latest_match_summary.kills} / #{@dashboard.latest_match_summary.deaths} / #{@dashboard.latest_match_summary.assists}"}
-                />
-                <.latest_metric label="ADR" value={@dashboard.latest_match_summary.adr} />
-                <.latest_metric label="K/D" value={@dashboard.latest_match_summary.kd_ratio} />
+              <div class="absolute inset-0 bg-gradient-to-b from-zinc-950/30 via-zinc-950/50 to-zinc-950/85">
+              </div>
+
+              <div class="relative z-10">
+                <p class="text-sm font-medium text-orange-400">Latest Match</p>
+                <h2 class="mt-1 text-2xl font-bold text-white">
+                  {pretty_map_name(@dashboard.latest_match_summary.map)}
+                </h2>
+
+                <div class="mt-5 space-y-4">
+                  <.latest_metric
+                    label="Result"
+                    value={if @dashboard.latest_match_summary.won, do: "Win", else: "Loss"}
+                  />
+                  <.latest_metric
+                    label="K / D / A"
+                    value={"#{@dashboard.latest_match_summary.kills} / #{@dashboard.latest_match_summary.deaths} / #{@dashboard.latest_match_summary.assists}"}
+                  />
+                  <.latest_metric label="ADR" value={@dashboard.latest_match_summary.adr} />
+                  <.latest_metric label="K/D" value={@dashboard.latest_match_summary.kd_ratio} />
+                </div>
               </div>
             </section>
           </div>
-
-          <section
-            :if={@dashboard}
-            id="aim-trend-chart-section"
-            class="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg shadow-black/20"
-          >
-            <h2 class="text-xl font-semibold text-white">
-              Headshot % Trend
-            </h2>
-
-            <p class="mt-1 text-sm text-zinc-400">
-              Headshot percentage from oldest match to newest match.
-            </p>
-
-            <div class="mt-5 h-72">
-              <canvas
-                id="aim-trend-chart"
-                phx-hook="HeadshotTrendChart"
-                phx-update="ignore"
-                data-points={aim_chart_points(@dashboard)}
-                class="h-full w-full"
-              >
-              </canvas>
-            </div>
-          </section>
 
           <section
             :if={@dashboard}
@@ -365,6 +379,14 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
       end
 
     {:noreply, socket}
+  end
+
+  def handle_event("select_chart", %{"chart" => "performance"}, socket) do
+    {:noreply, assign(socket, :active_chart, :performance)}
+  end
+
+  def handle_event("select_chart", %{"chart" => "aim"}, socket) do
+    {:noreply, assign(socket, :active_chart, :aim)}
   end
 
   defp load_dashboard(socket, nickname) do
@@ -485,6 +507,45 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
 
   defp refresh_error_message(_reason),
     do: "Could not refresh the dashboard. Showing cached stats."
+
+  defp chart_tab_class(active_chart, chart) do
+    base = "rounded-md px-3 py-1.5 transition"
+
+    if active_chart == chart do
+      "#{base} bg-orange-600 text-white shadow-sm"
+    else
+      "#{base} text-zinc-400 hover:text-white"
+    end
+  end
+
+  defp chart_title(:aim), do: "Aim Trend"
+  defp chart_title(_chart), do: "ADR + K/D Trend"
+
+  defp chart_description(:aim),
+    do: "Headshot percentage trend from oldest match to newest match."
+
+  defp chart_description(_chart),
+    do: "ADR and K/D trend from oldest match to newest match."
+
+  defp map_image_url("de_ancient"), do: ~p"/assets/images/de_ancient.png"
+  defp map_image_url("de_anubis"), do: ~p"/assets/images/anubis.png"
+  defp map_image_url("de_dust2"), do: ~p"/assets/images/dust 2.png"
+  defp map_image_url("dust_2"), do: ~p"/assets/images/dust 2.png"
+  defp map_image_url("de_inferno"), do: ~p"/assets/images/inferno.png"
+  defp map_image_url("de_mirage"), do: ~p"/assets/images/mirage.png"
+  defp map_image_url("de_nuke"), do: ~p"/assets/images/nuke.png"
+  defp map_image_url("de_overpass"), do: ~p"/assets/images/overpass.png"
+  defp map_image_url(_map), do: nil
+
+  defp pretty_map_name("de_ancient"), do: "Ancient"
+  defp pretty_map_name("de_anubis"), do: "Anubis"
+  defp pretty_map_name("de_dust2"), do: "Dust II"
+  defp pretty_map_name("dust_2"), do: "Dust II"
+  defp pretty_map_name("de_inferno"), do: "Inferno"
+  defp pretty_map_name("de_mirage"), do: "Mirage"
+  defp pretty_map_name("de_nuke"), do: "Nuke"
+  defp pretty_map_name("de_overpass"), do: "Overpass"
+  defp pretty_map_name(map), do: map
 
   defp avg_headshot_percent(%{recent_stats: []}), do: "--"
 

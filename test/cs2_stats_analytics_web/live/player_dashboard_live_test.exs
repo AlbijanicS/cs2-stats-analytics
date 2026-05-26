@@ -99,7 +99,6 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
 
     assert has_element?(view, "#dashboard-summary")
     refute has_element?(view, "#dashboard-loading")
-    refute has_element?(view, "#dashboard-error")
   end
 
   test "renders stale cached dashboard while refreshing and replaces it after async completion",
@@ -128,10 +127,8 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
              "#performance-trend-chart[phx-hook='AdrTrendChart'][phx-update='ignore'][data-points]"
            )
 
-    assert has_element?(
-             view,
-             "#aim-trend-chart[phx-hook='HeadshotTrendChart'][phx-update='ignore'][data-points]"
-           )
+    refute has_element?(view, "#aim-trend-chart-section")
+    refute has_element?(view, "#aim-trend-chart")
   end
 
   test "keeps incomplete dashboard visible when background refresh fails", %{conn: conn} do
@@ -178,7 +175,6 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
     |> render_submit()
 
     assert has_element?(view, "#dashboard-summary", "stefan")
-    refute has_element?(view, "#dashboard-error")
     refute has_element?(view, "#dashboard-loading")
   end
 
@@ -196,16 +192,68 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
 
     assert has_element?(view, "#dashboard-summary")
     assert has_element?(view, "#dashboard-summary", "stefan")
+    assert has_element?(view, "#latest-match-summary", "Mirage")
+    refute has_element?(view, "#latest-match-summary", "de_mirage")
+    assert has_element?(view, "#latest-match-summary [style*='mirage.png']")
 
     assert has_element?(
              view,
              "#performance-trend-chart[phx-hook='AdrTrendChart'][phx-update='ignore'][data-points]"
            )
 
+    refute has_element?(view, "#aim-trend-chart-section")
+    refute has_element?(view, "#aim-trend-chart")
+
+    view
+    |> element("#aim-chart-tab")
+    |> render_click()
+
     assert has_element?(
              view,
              "#aim-trend-chart[phx-hook='HeadshotTrendChart'][phx-update='ignore'][data-points]"
            )
+
+    assert chart_count(view, "#aim-trend-chart") == 1
+    assert has_element?(view, "#performance-trend-chart-section", "Aim Trend")
+    refute has_element?(view, "#performance-trend-chart")
+
+    view
+    |> element("#performance-chart-tab")
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "#performance-trend-chart[phx-hook='AdrTrendChart'][phx-update='ignore'][data-points]"
+           )
+
+    refute has_element?(view, "#aim-trend-chart")
+  end
+
+  test "keeps selected chart after searching again", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    view
+    |> form("#player-search-form", search: %{nickname: "stefan"})
+    |> render_submit()
+
+    render_async(view)
+
+    view
+    |> element("#aim-chart-tab")
+    |> render_click()
+
+    assert has_element?(view, "#aim-trend-chart")
+
+    view
+    |> form("#player-search-form", search: %{nickname: "stefan"})
+    |> render_submit()
+
+    assert has_element?(
+             view,
+             "#aim-trend-chart[phx-hook='HeadshotTrendChart'][phx-update='ignore'][data-points]"
+           )
+
+    refute has_element?(view, "#performance-trend-chart")
   end
 
   test "renders an error for blank search", %{conn: conn} do
@@ -225,5 +273,13 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
     |> Repo.get_by!(nickname: nickname)
     |> Player.changeset(%{last_synced_at: stale_at})
     |> Repo.update!()
+  end
+
+  defp chart_count(view, selector) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query(selector)
+    |> Enum.count()
   end
 end

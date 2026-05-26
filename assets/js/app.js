@@ -22,6 +22,19 @@ const parsePoints = (element) => {
   }
 }
 
+const chartFill = (colorStops) => (context) => {
+  const {chart} = context
+  const {ctx, chartArea} = chart
+
+  if (!chartArea) {
+    return colorStops[0][1]
+  }
+
+  const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+  colorStops.forEach(([stop, color]) => gradient.addColorStop(stop, color))
+  return gradient
+}
+
 const chartBaseOptions = {
   responsive: true,
   maintainAspectRatio: false,
@@ -32,46 +45,58 @@ const chartBaseOptions = {
   plugins: {
     legend: {
       position: "bottom",
+      align: "center",
       labels: {
-        boxWidth: 10,
-        boxHeight: 10,
-        color: "#3f3f46",
+        boxWidth: 8,
+        boxHeight: 8,
+        color: "#a1a1aa",
         font: {
           family: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-          size: 12,
+          size: 11,
         },
         usePointStyle: true,
+        padding: 18,
       },
     },
     tooltip: {
-      backgroundColor: "#18181b",
+      backgroundColor: "#09090b",
       borderColor: "#3f3f46",
       borderWidth: 1,
-      padding: 10,
+      padding: 12,
       titleColor: "#fafafa",
       bodyColor: "#e4e4e7",
       displayColors: true,
+      boxPadding: 4,
     },
   },
   elements: {
     line: {
-      borderWidth: 2,
-      tension: 0.35,
+      borderWidth: 3,
+      tension: 0.3,
     },
     point: {
-      radius: 3,
+      radius: 0,
       hoverRadius: 5,
       borderWidth: 2,
-      backgroundColor: "#ffffff",
+      backgroundColor: "#18181b",
     },
   },
   scales: {
     x: {
       grid: {
-        display: false,
+        color: "rgba(113, 113, 122, 0.16)",
+        borderDash: [4, 6],
+        drawTicks: false,
       },
       ticks: {
+        autoSkip: true,
         color: "#71717a",
+        maxRotation: 0,
+        maxTicksLimit: 6,
+        padding: 10,
+      },
+      border: {
+        display: false,
       },
     },
   },
@@ -112,15 +137,21 @@ const Hooks = {
         {
           label: "ADR",
           data: points.map((point) => point.adr),
-          borderColor: "#2563eb",
-          pointBorderColor: "#2563eb",
+          borderColor: "#ff5a1f",
+          pointBorderColor: "#ff5a1f",
+          fill: true,
+          backgroundColor: chartFill([
+            [0, "rgba(255, 90, 31, 0.22)"],
+            [1, "rgba(255, 90, 31, 0.02)"],
+          ]),
           yAxisID: "adr",
         },
         {
           label: "K/D",
           data: points.map((point) => point.kd_ratio),
-          borderColor: "#16a34a",
-          pointBorderColor: "#16a34a",
+          borderColor: "#22c55e",
+          borderWidth: 2,
+          pointBorderColor: "#22c55e",
           yAxisID: "kd",
         },
       ],
@@ -134,31 +165,29 @@ const Hooks = {
           position: "left",
           beginAtZero: true,
           grid: {
-            color: "#e4e4e7",
+            color: "rgba(113, 113, 122, 0.18)",
+            borderDash: [4, 6],
+            drawTicks: false,
           },
           ticks: {
-            color: "#2563eb",
+            color: "#a1a1aa",
+            maxTicksLimit: 4,
+            padding: 10,
           },
           title: {
-            display: true,
-            text: "ADR",
-            color: "#2563eb",
+            display: false,
+          },
+          border: {
+            display: false,
           },
         },
         kd: {
           type: "linear",
           position: "right",
           beginAtZero: true,
+          display: false,
           grid: {
             drawOnChartArea: false,
-          },
-          ticks: {
-            color: "#16a34a",
-          },
-          title: {
-            display: true,
-            text: "K/D",
-            color: "#16a34a",
           },
         },
       },
@@ -173,10 +202,13 @@ const Hooks = {
         {
           label: "Headshot %",
           data: points.map((point) => point.headshot_percent),
-          borderColor: "#9333ea",
-          pointBorderColor: "#9333ea",
+          borderColor: "#ff5a1f",
+          pointBorderColor: "#ff5a1f",
           fill: true,
-          backgroundColor: "rgba(147, 51, 234, 0.08)",
+          backgroundColor: chartFill([
+            [0, "rgba(255, 90, 31, 0.22)"],
+            [1, "rgba(255, 90, 31, 0.02)"],
+          ]),
         },
       ],
     },
@@ -188,16 +220,21 @@ const Hooks = {
           beginAtZero: true,
           max: 100,
           grid: {
-            color: "#e4e4e7",
+            color: "rgba(113, 113, 122, 0.18)",
+            borderDash: [4, 6],
+            drawTicks: false,
           },
           ticks: {
-            color: "#71717a",
+            color: "#a1a1aa",
+            maxTicksLimit: 4,
+            padding: 10,
             callback: (value) => `${value}%`,
           },
           title: {
-            display: true,
-            text: "Headshot %",
-            color: "#71717a",
+            display: false,
+          },
+          border: {
+            display: false,
           },
         },
       },
