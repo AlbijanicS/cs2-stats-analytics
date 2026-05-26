@@ -66,4 +66,30 @@ defmodule Cs2StatsAnalytics.Faceit.NormalizerTest do
     assert Normalizer.normalize_player_match_stat(history_match, stats, "player-1") ==
              {:error, :invalid_integer}
   end
+
+  test "normalize_player_match_stat/3 returns an error when required stats are missing" do
+    history_match = %{"results" => %{"winner" => "faction1"}}
+
+    stats = %{
+      "rounds" => [
+        %{
+          "teams" => [
+            %{
+              "team_id" => "faction1",
+              "players" => [
+                %{
+                  "player_id" => "player-1",
+                  "nickname" => "stefan",
+                  "player_stats" => %{}
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+
+    assert Normalizer.normalize_player_match_stat(history_match, stats, "player-1") ==
+             {:error, :missing_kills}
+  end
 end

@@ -49,18 +49,19 @@ defmodule Cs2StatsAnalytics.Faceit.Normalizer do
   def normalize_player_match_stat(api_history_match, api_match_stats, faceit_player_id) do
     with {:ok, {team_id, api_player}} <- find_player(api_match_stats, faceit_player_id),
          player_stats = api_player["player_stats"] || %{},
-         {:ok, kills} <- parse_int(player_stats["Kills"]),
-         {:ok, deaths} <- parse_int(player_stats["Deaths"]),
-         {:ok, assists} <- parse_int(player_stats["Assists"]),
-         {:ok, adr} <- parse_float(player_stats["ADR"]),
-         {:ok, headshots} <- parse_int(player_stats["Headshots"]),
-         {:ok, headshot_percent} <- parse_float(player_stats["Headshots %"]),
-         {:ok, kd_ratio} <- parse_float(player_stats["K/D Ratio"]),
-         {:ok, kr_ratio} <- parse_float(player_stats["K/R Ratio"]),
-         {:ok, mvps} <- parse_int(player_stats["MVPs"]),
-         {:ok, triple_kills} <- parse_int(player_stats["Triple Kills"]),
-         {:ok, quadro_kills} <- parse_int(player_stats["Quadro Kills"]),
-         {:ok, penta_kills} <- parse_int(player_stats["Penta Kills"]),
+         {:ok, kills} <- required_int(player_stats["Kills"], :missing_kills),
+         {:ok, deaths} <- required_int(player_stats["Deaths"], :missing_deaths),
+         {:ok, assists} <- required_int(player_stats["Assists"], :missing_assists),
+         {:ok, adr} <- required_float(player_stats["ADR"], :missing_adr),
+         {:ok, headshots} <- required_int(player_stats["Headshots"], :missing_headshots),
+         {:ok, headshot_percent} <-
+           required_float(player_stats["Headshots %"], :missing_headshot_percent),
+         {:ok, kd_ratio} <- required_float(player_stats["K/D Ratio"], :missing_kd_ratio),
+         {:ok, kr_ratio} <- required_float(player_stats["K/R Ratio"], :missing_kr_ratio),
+         {:ok, mvps} <- required_int(player_stats["MVPs"], :missing_mvps),
+         {:ok, triple_kills} <- required_int(player_stats["Triple Kills"], :missing_triple_kills),
+         {:ok, quadro_kills} <- required_int(player_stats["Quadro Kills"], :missing_quadro_kills),
+         {:ok, penta_kills} <- required_int(player_stats["Penta Kills"], :missing_penta_kills),
          {:ok, first_kills} <- optional_int(player_stats["First Kills"]),
          {:ok, entry_count} <- optional_int(player_stats["Entry Count"]),
          {:ok, entry_wins} <- optional_int(player_stats["Entry Wins"]),
@@ -179,6 +180,12 @@ defmodule Cs2StatsAnalytics.Faceit.Normalizer do
 
   defp parse_int(_value), do: {:error, :invalid_integer}
 
+  defp required_int(value, reason) do
+    with {:ok, value} <- required(value, reason) do
+      parse_int(value)
+    end
+  end
+
   defp parse_float(nil), do: {:ok, nil}
 
   defp parse_float(value) when is_float(value), do: {:ok, value}
@@ -194,6 +201,12 @@ defmodule Cs2StatsAnalytics.Faceit.Normalizer do
   end
 
   defp parse_float(_value), do: {:error, :invalid_float}
+
+  defp required_float(value, reason) do
+    with {:ok, value} <- required(value, reason) do
+      parse_float(value)
+    end
+  end
 
   defp won?(_team_id, _api_history_match, %{"Result" => "1"}), do: true
   defp won?(_team_id, _api_history_match, %{"Result" => "0"}), do: false

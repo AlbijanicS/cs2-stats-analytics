@@ -40,49 +40,39 @@ defmodule Cs2StatsAnalytics.Faceit.Client do
 
   defp get(path, query_params \\ []) do
     with {:ok, api_key} <- api_key() do
-      url = build_url(path, query_params)
+      case Req.get(
+             url: @base_url <> path,
+             params: query_params,
+             headers: [
+               {"accept", "application/json"},
+               {"authorization", "Bearer #{api_key}"}
+             ],
+             retry: false
+           ) do
+        {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
+          {:ok, body}
 
-      request =
-        Finch.build(:get, url, [
-          {"accept", "application/json"},
-          {"authorization", "Bearer #{api_key}"}
-        ])
-
-      case Finch.request(request, Cs2StatsAnalytics.Finch) do
-        {:ok, %Finch.Response{status: status, body: body}} when status in 200..299 ->
-          decode_json(body)
-
-        {:ok, %Finch.Response{status: 401}} ->
+        {:ok, %Req.Response{status: 401}} ->
           {:error, :unauthorized}
 
-        {:ok, %Finch.Response{status: 403}} ->
+        {:ok, %Req.Response{status: 403}} ->
           {:error, :forbidden}
 
-        {:ok, %Finch.Response{status: 404}} ->
+        {:ok, %Req.Response{status: 404}} ->
           {:error, :not_found}
 
-        {:ok, %Finch.Response{status: 429}} ->
+        {:ok, %Req.Response{status: 429}} ->
           {:error, :rate_limited}
 
-        {:ok, %Finch.Response{status: status, body: body}} ->
+        {:ok, %Req.Response{status: status, body: body}} ->
           {:error, {:faceit_error, status, body}}
+
+        {:error, %Jason.DecodeError{}} ->
+          {:error, :invalid_json}
 
         {:error, reason} ->
           {:error, {:request_failed, reason}}
       end
-    end
-  end
-
-  defp build_url(path, []), do: @base_url <> path
-
-  defp build_url(path, query_params) do
-    @base_url <> path <> "?" <> URI.encode_query(query_params)
-  end
-
-  defp decode_json(body) do
-    case Jason.decode(body) do
-      {:ok, decoded} -> {:ok, decoded}
-      {:error, _reason} -> {:error, :invalid_json}
     end
   end
 

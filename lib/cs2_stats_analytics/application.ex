@@ -13,7 +13,6 @@ defmodule Cs2StatsAnalytics.Application do
       {DNSCluster,
        query: Application.get_env(:cs2_stats_analytics, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Cs2StatsAnalytics.PubSub},
-      {Finch, name: Cs2StatsAnalytics.Finch},
       # Start a worker by calling: Cs2StatsAnalytics.Worker.start_link(arg)
       # {Cs2StatsAnalytics.Worker, arg},
       # Start to serve requests, typically the last entry

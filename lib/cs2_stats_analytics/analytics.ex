@@ -21,13 +21,12 @@ defmodule Cs2StatsAnalytics.Analytics do
   @fresh_for_seconds 15 * 60
 
   def get_or_sync_dashboard(nickname, limit \\ 30) do
-    case get_dashboard(nickname, limit) do
-      {:ok, dashboard} ->
-        if fresh_dashboard?(dashboard, limit) do
-          {:ok, dashboard}
-        else
-          sync_and_get_dashboard(nickname, limit)
-        end
+    case classify_dashboard(nickname, limit) do
+      {:ok, :fresh, dashboard} ->
+        {:ok, dashboard}
+
+      {:ok, :stale, _dashboard} ->
+        sync_and_get_dashboard(nickname, limit)
 
       {:error, :player_not_found} ->
         sync_and_get_dashboard(nickname, limit)
@@ -55,7 +54,7 @@ defmodule Cs2StatsAnalytics.Analytics do
       history
       |> Map.get("items", [])
       |> Enum.take(limit)
-      |> import_matches(player_attrs)
+      |> import_matches(player_attrs, client)
     end
   end
 
@@ -74,6 +73,16 @@ defmodule Cs2StatsAnalytics.Analytics do
   end
 
   def get_dashboard_refresh_state(nickname, limit \\ 30) do
+    classify_dashboard(nickname, limit)
+  end
+
+  defp sync_and_get_dashboard(nickname, limit) do
+    with {:ok, _imports} <- sync_player(nickname, limit) do
+      get_dashboard(nickname, limit)
+    end
+  end
+
+  defp classify_dashboard(nickname, limit) do
     case get_dashboard(nickname, limit) do
       {:ok, dashboard} ->
         state = if fresh_dashboard?(dashboard, limit), do: :fresh, else: :stale
@@ -84,15 +93,9 @@ defmodule Cs2StatsAnalytics.Analytics do
     end
   end
 
-  defp sync_and_get_dashboard(nickname, limit) do
-    with {:ok, _imports} <- sync_player(nickname, limit) do
-      get_dashboard(nickname, limit)
-    end
-  end
-
-  defp import_matches(api_matches, player_attrs) do
+  defp import_matches(api_matches, player_attrs, client) do
     Enum.reduce_while(api_matches, {:ok, []}, fn api_match, {:ok, imported_matches} ->
-      case import_match(api_match, player_attrs) do
+      case import_match(api_match, player_attrs, client) do
         {:ok, result} ->
           {:cont, {:ok, [result | imported_matches]}}
 
@@ -106,8 +109,8 @@ defmodule Cs2StatsAnalytics.Analytics do
     end
   end
 
-  defp import_match(api_history_match, player_attrs) do
-    with {:ok, api_match_stats} <- faceit_client().get_match_stats(api_history_match["match_id"]),
+  defp import_match(api_history_match, player_attrs, client) do
+    with {:ok, api_match_stats} <- client.get_match_stats(api_history_match["match_id"]),
          {:ok, match_attrs} <- Normalizer.normalize_match(api_history_match, api_match_stats),
          {:ok, stats_attrs} <-
            Normalizer.normalize_player_match_stat(

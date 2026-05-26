@@ -36,30 +36,7 @@ defmodule Cs2StatsAnalytics.PlayerMatchImporter do
     :updated_at
   ]
 
-  @stat_replace_fields [
-    :team_id,
-    :nickname_at_match,
-    :kills,
-    :deaths,
-    :assists,
-    :adr,
-    :headshots,
-    :headshot_percent,
-    :kd_ratio,
-    :kr_ratio,
-    :mvps,
-    :triple_kills,
-    :quadro_kills,
-    :penta_kills,
-    :won,
-    :raw_stats,
-    :updated_at,
-    :first_kills,
-    :entry_count,
-    :entry_wins,
-    :entry_rate,
-    :entry_success_rate
-  ]
+  @stat_replace_fields PlayerMatchStat.stat_fields() ++ [:updated_at]
 
   def import_player_match(%{player: player_attrs, match: match_attrs, stats: stats_attrs}) do
     Multi.new()
