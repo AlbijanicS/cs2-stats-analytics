@@ -48,57 +48,16 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
-      <div class="min-h-screen bg-zinc-950 p-3 shadow-2xl shadow-black/30 lg:flex lg:gap-5">
-        <.sidebar nickname={@nickname} />
+    <Layouts.app flash={@flash} active_nav={:dashboard} nickname={@nickname}>
+      <.search_panel form={@form} status={@status} error={@error} />
 
-        <div class="mt-4 min-w-0 flex-1 lg:mt-0">
-          <.search_panel form={@form} status={@status} error={@error} />
+      <.dashboard_summary :if={@dashboard} dashboard={@dashboard} />
 
-          <.dashboard_summary :if={@dashboard} dashboard={@dashboard} />
-
-          <div :if={@dashboard} class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
-            <.trend_chart_panel dashboard={@dashboard} active_chart={@active_chart} />
-            <.latest_match_card dashboard={@dashboard} />
-          </div>
-        </div>
+      <div :if={@dashboard} class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <.trend_chart_panel dashboard={@dashboard} active_chart={@active_chart} />
+        <.latest_match_card dashboard={@dashboard} />
       </div>
     </Layouts.app>
-    """
-  end
-
-  attr :nickname, :string, required: true
-
-  defp sidebar(assigns) do
-    assigns = assign(assigns, :matches_path, matches_path(assigns.nickname))
-
-    ~H"""
-    <aside
-      id="dashboard-sidebar"
-      class="rounded-xl border border-zinc-800 bg-black p-4 text-white shadow-lg shadow-black/40 lg:sticky lg:top-3 lg:h-[calc(100vh-1.5rem)] lg:w-64 lg:shrink-0"
-    >
-      <div class="flex items-center justify-between gap-3 lg:block">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.24em] text-orange-400">
-            FACEIT
-          </p>
-          <h1 class="mt-1 text-2xl font-bold tracking-tight">CS2 Analytics</h1>
-        </div>
-      </div>
-
-      <nav
-        id="dashboard-nav"
-        class="mt-5 grid grid-cols-2 gap-2 text-sm font-medium sm:grid-cols-4 lg:grid-cols-1"
-      >
-        <.nav_item icon="hero-squares-2x2" label="Dashboard" active />
-        <.nav_item icon="hero-table-cells" label="Matches" navigate={@matches_path} />
-        <.nav_item icon="hero-bolt" label="Aim" />
-        <.nav_item icon="hero-wrench-screwdriver" label="Utility" />
-        <.nav_item icon="hero-chart-bar-square" label="Impact" />
-        <.nav_item icon="hero-map" label="Maps" />
-        <.nav_item icon="hero-cog-6-tooth" label="Settings" />
-      </nav>
-    </aside>
     """
   end
 
@@ -152,6 +111,10 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
 
       <p :if={@status == :loading} id="dashboard-loading" class="mt-4 text-sm text-zinc-300">
         Fetching stats...
+      </p>
+
+      <p :if={@status == :empty} id="dashboard-empty" class="mt-4 text-sm text-zinc-400">
+        Search a FACEIT nickname to open a player dashboard.
       </p>
 
       <p :if={@error} id="dashboard-error" class="mt-4 text-sm font-medium text-orange-300">
@@ -389,7 +352,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
         nickname ->
           socket
           |> assign(:form, form)
-          |> push_patch(to: ~p"/?nickname=#{nickname}")
+          |> push_patch(to: ~p"/dashboard?nickname=#{nickname}")
       end
 
     {:noreply, socket}
@@ -591,56 +554,20 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
   defp map_metadata(map), do: %{name: map, image_url: nil}
 
   defp latest_match_path(%{recent_stats: [latest_stat | _rest], player: player}) do
-    ~p"/matches/#{latest_stat.match.faceit_match_id}?nickname=#{player.nickname}"
+    match_path(latest_stat.match.faceit_match_id, player.nickname)
   end
 
-  defp matches_path(nickname) do
+  defp match_path(faceit_match_id, nickname) do
+    path = "/matches/#{URI.encode(to_string(faceit_match_id), &URI.char_unreserved?/1)}"
+
     case String.trim(nickname) do
-      "" -> ~p"/matches"
-      nickname -> ~p"/matches?nickname=#{nickname}"
+      "" -> path
+      nickname -> "#{path}?#{URI.encode_query(%{nickname: nickname})}"
     end
   end
 
   defp avg_headshot_percent(nil), do: "--"
   defp avg_headshot_percent(value), do: "#{value}%"
-
-  attr :icon, :string, required: true
-  attr :label, :string, required: true
-  attr :active, :boolean, default: false
-  attr :navigate, :string, default: nil
-
-  defp nav_item(assigns) do
-    ~H"""
-    <.link
-      :if={@navigate}
-      navigate={@navigate}
-      class={[
-        "flex items-center gap-2 rounded-lg px-3 py-2.5 transition",
-        if(@active,
-          do: "bg-orange-600 text-white shadow-sm shadow-orange-950/30",
-          else: "text-zinc-300 hover:bg-white/10 hover:text-white"
-        )
-      ]}
-    >
-      <.icon name={@icon} class="size-4 shrink-0" />
-      <span class="truncate">{@label}</span>
-    </.link>
-
-    <span
-      :if={!@navigate}
-      class={[
-        "flex items-center gap-2 rounded-lg px-3 py-2.5 transition",
-        if(@active,
-          do: "bg-orange-600 text-white shadow-sm shadow-orange-950/30",
-          else: "text-zinc-300 hover:bg-white/10 hover:text-white"
-        )
-      ]}
-    >
-      <.icon name={@icon} class="size-4 shrink-0" />
-      <span class="truncate">{@label}</span>
-    </span>
-    """
-  end
 
   attr :label, :string, required: true
   attr :value, :any, required: true

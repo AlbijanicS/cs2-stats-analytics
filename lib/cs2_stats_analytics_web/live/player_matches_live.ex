@@ -33,69 +33,28 @@ defmodule Cs2StatsAnalyticsWeb.PlayerMatchesLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
-      <div class="min-h-screen bg-zinc-950 p-3 shadow-2xl shadow-black/30 lg:flex lg:gap-5">
-        <.sidebar nickname={@nickname} />
+    <Layouts.app flash={@flash} active_nav={:matches} nickname={@nickname}>
+      <section class="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg shadow-black/20">
+        <p class="text-sm font-medium text-orange-400">Player matches</p>
+        <h1 class="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+          {matches_title(@dashboard, @nickname)}
+        </h1>
 
-        <main class="mt-4 min-w-0 flex-1 lg:mt-0">
-          <section class="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg shadow-black/20">
-            <p class="text-sm font-medium text-orange-400">Player matches</p>
-            <h1 class="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              {matches_title(@dashboard, @nickname)}
-            </h1>
+        <p :if={@status == :loading} id="matches-loading" class="mt-4 text-sm text-zinc-300">
+          Fetching matches...
+        </p>
 
-            <p :if={@status == :loading} id="matches-loading" class="mt-4 text-sm text-zinc-300">
-              Fetching matches...
-            </p>
+        <p :if={@status == :empty} id="matches-empty" class="mt-4 text-sm text-zinc-400">
+          Search for a player on the dashboard to view match history.
+        </p>
 
-            <p :if={@status == :empty} id="matches-empty" class="mt-4 text-sm text-zinc-400">
-              Search for a player on the dashboard to view match history.
-            </p>
+        <p :if={@error} id="matches-error" class="mt-4 text-sm font-medium text-orange-300">
+          {@error}
+        </p>
+      </section>
 
-            <p :if={@error} id="matches-error" class="mt-4 text-sm font-medium text-orange-300">
-              {@error}
-            </p>
-          </section>
-
-          <.recent_matches_table :if={@dashboard} dashboard={@dashboard} />
-        </main>
-      </div>
+      <.recent_matches_table :if={@dashboard} dashboard={@dashboard} />
     </Layouts.app>
-    """
-  end
-
-  attr :nickname, :string, required: true
-
-  defp sidebar(assigns) do
-    assigns = assign(assigns, :dashboard_path, dashboard_path(assigns.nickname))
-
-    ~H"""
-    <aside
-      id="dashboard-sidebar"
-      class="rounded-xl border border-zinc-800 bg-black p-4 text-white shadow-lg shadow-black/40 lg:sticky lg:top-3 lg:h-[calc(100vh-1.5rem)] lg:w-64 lg:shrink-0"
-    >
-      <div class="flex items-center justify-between gap-3 lg:block">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.24em] text-orange-400">
-            FACEIT
-          </p>
-          <h1 class="mt-1 text-2xl font-bold tracking-tight">CS2 Analytics</h1>
-        </div>
-      </div>
-
-      <nav
-        id="dashboard-nav"
-        class="mt-5 grid grid-cols-2 gap-2 text-sm font-medium sm:grid-cols-4 lg:grid-cols-1"
-      >
-        <.nav_item icon="hero-squares-2x2" label="Dashboard" navigate={@dashboard_path} />
-        <.nav_item icon="hero-table-cells" label="Matches" active />
-        <.nav_item icon="hero-bolt" label="Aim" />
-        <.nav_item icon="hero-wrench-screwdriver" label="Utility" />
-        <.nav_item icon="hero-chart-bar-square" label="Impact" />
-        <.nav_item icon="hero-map" label="Maps" />
-        <.nav_item icon="hero-cog-6-tooth" label="Settings" />
-      </nav>
-    </aside>
     """
   end
 
@@ -134,9 +93,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerMatchesLive do
             <tr :for={stat <- @dashboard.recent_stats} class="transition hover:bg-black/30">
               <td class="py-3 pr-4 font-semibold text-white">
                 <.link
-                  navigate={
-                    ~p"/matches/#{stat.match.faceit_match_id}?nickname=#{@dashboard.player.nickname}"
-                  }
+                  navigate={match_path(stat.match.faceit_match_id, @dashboard.player.nickname)}
                   class="text-white transition hover:text-orange-300"
                 >
                   {map_metadata(stat.match.map).name}
@@ -201,13 +158,6 @@ defmodule Cs2StatsAnalyticsWeb.PlayerMatchesLive do
     end
   end
 
-  defp dashboard_path(nickname) do
-    case String.trim(nickname) do
-      "" -> ~p"/"
-      nickname -> ~p"/?nickname=#{nickname}"
-    end
-  end
-
   defp matches_title(%{player: player}, _nickname), do: "#{player.nickname}'s Match History"
   defp matches_title(_dashboard, ""), do: "Match History"
   defp matches_title(_dashboard, nickname), do: "#{nickname}'s Match History"
@@ -230,42 +180,13 @@ defmodule Cs2StatsAnalyticsWeb.PlayerMatchesLive do
 
   defp map_metadata(map), do: %{name: map, image_url: nil}
 
-  attr :icon, :string, required: true
-  attr :label, :string, required: true
-  attr :active, :boolean, default: false
-  attr :navigate, :string, default: nil
+  defp match_path(faceit_match_id, nickname) do
+    path = "/matches/#{URI.encode(to_string(faceit_match_id), &URI.char_unreserved?/1)}"
 
-  defp nav_item(assigns) do
-    ~H"""
-    <.link
-      :if={@navigate}
-      navigate={@navigate}
-      class={[
-        "flex items-center gap-2 rounded-lg px-3 py-2.5 transition",
-        if(@active,
-          do: "bg-orange-600 text-white shadow-sm shadow-orange-950/30",
-          else: "text-zinc-300 hover:bg-white/10 hover:text-white"
-        )
-      ]}
-    >
-      <.icon name={@icon} class="size-4 shrink-0" />
-      <span class="truncate">{@label}</span>
-    </.link>
-
-    <span
-      :if={!@navigate}
-      class={[
-        "flex items-center gap-2 rounded-lg px-3 py-2.5 transition",
-        if(@active,
-          do: "bg-orange-600 text-white shadow-sm shadow-orange-950/30",
-          else: "text-zinc-300 hover:bg-white/10 hover:text-white"
-        )
-      ]}
-    >
-      <.icon name={@icon} class="size-4 shrink-0" />
-      <span class="truncate">{@label}</span>
-    </span>
-    """
+    case String.trim(nickname) do
+      "" -> path
+      nickname -> "#{path}?#{URI.encode_query(%{nickname: nickname})}"
+    end
   end
 
   defp error_message(:player_not_found), do: "No FACEIT player found for that nickname."

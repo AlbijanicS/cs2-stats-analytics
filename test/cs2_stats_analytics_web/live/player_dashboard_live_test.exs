@@ -5,6 +5,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
 
   alias Cs2StatsAnalytics.Analytics
   alias Cs2StatsAnalytics.Repo
+  alias Cs2StatsAnalytics.Schemas.Match
   alias Cs2StatsAnalytics.Schemas.Player
 
   defmodule ErrorClient do
@@ -91,19 +92,19 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
     assert {:ok, _imported_matches} = Analytics.sync_player("stefan", 10)
     Application.put_env(:cs2_stats_analytics, :faceit_client, ErrorClient)
 
-    {:ok, view, _html} = live(conn, ~p"/")
+    {:ok, view, _html} = live(conn, ~p"/dashboard")
 
     view
     |> form("#player-search-form", search: %{nickname: "stefan"})
     |> render_submit()
 
-    assert_patch(view, ~p"/?nickname=stefan")
+    assert_patch(view, ~p"/dashboard?nickname=stefan")
     assert has_element?(view, "#dashboard-summary")
     refute has_element?(view, "#dashboard-loading")
   end
 
   test "loads dashboard from nickname query param", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/?nickname=stefan")
+    {:ok, view, _html} = live(conn, ~p"/dashboard?nickname=stefan")
 
     render_async(view)
 
@@ -118,7 +119,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
     assert {:ok, _imported_matches} = Analytics.sync_player("stefan", 3)
     mark_player_stale!("stefan")
 
-    {:ok, view, _html} = live(conn, ~p"/")
+    {:ok, view, _html} = live(conn, ~p"/dashboard")
 
     view
     |> form("#player-search-form", search: %{nickname: "stefan"})
@@ -147,7 +148,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
     Application.put_env(:cs2_stats_analytics, :live_view_test_pid, self())
     Application.put_env(:cs2_stats_analytics, :faceit_client, FailingRefreshClient)
 
-    {:ok, view, _html} = live(conn, ~p"/")
+    {:ok, view, _html} = live(conn, ~p"/dashboard")
 
     view
     |> form("#player-search-form", search: %{nickname: "stefan"})
@@ -172,7 +173,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
     Application.put_env(:cs2_stats_analytics, :live_view_test_pid, self())
     Application.put_env(:cs2_stats_analytics, :faceit_client, BlockingUnknownClient)
 
-    {:ok, view, _html} = live(conn, ~p"/")
+    {:ok, view, _html} = live(conn, ~p"/dashboard")
 
     view
     |> form("#player-search-form", search: %{nickname: "unknown"})
@@ -190,9 +191,10 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
   end
 
   test "renders the dashboard after searching for a known fake player", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
+    {:ok, view, _html} = live(conn, ~p"/dashboard")
 
     assert has_element?(view, "#player-search-form")
+    assert has_element?(view, "#dashboard-sidebar a[href='/']", "CS2 Analytics")
     refute has_element?(view, "#dashboard-summary")
 
     view
@@ -250,8 +252,25 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
     refute has_element?(view, "#aim-trend-chart")
   end
 
+  test "renders latest match link for FACEIT ids that look like UUID route segments", %{
+    conn: conn
+  } do
+    assert {:ok, _imported_matches} = Analytics.sync_player("stefan", 10)
+
+    update_match_id!("match_010", "1-66a72de6-070d-4308-966f-eea1d3912028")
+    Application.put_env(:cs2_stats_analytics, :faceit_client, ErrorClient)
+
+    {:ok, view, _html} = live(conn, ~p"/dashboard?nickname=stefan")
+
+    assert has_element?(
+             view,
+             "#latest-match-summary a[href='/matches/1-66a72de6-070d-4308-966f-eea1d3912028?nickname=stefan']",
+             "Mirage"
+           )
+  end
+
   test "keeps selected chart after searching again", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
+    {:ok, view, _html} = live(conn, ~p"/dashboard")
 
     view
     |> form("#player-search-form", search: %{nickname: "stefan"})
@@ -278,7 +297,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
   end
 
   test "renders an error for blank search", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/")
+    {:ok, view, _html} = live(conn, ~p"/dashboard")
 
     view
     |> form("#player-search-form", search: %{nickname: "   "})
@@ -294,6 +313,17 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
     |> Repo.get_by!(nickname: nickname)
     |> Player.changeset(%{last_synced_at: stale_at})
     |> Repo.update!()
+  end
+
+  defp update_match_id!(from_id, to_id) do
+    from_id
+    |> match_by_faceit_id!()
+    |> Match.changeset(%{faceit_match_id: to_id})
+    |> Repo.update!()
+  end
+
+  defp match_by_faceit_id!(faceit_match_id) do
+    Repo.get_by!(Match, faceit_match_id: faceit_match_id)
   end
 
   defp chart_count(view, selector) do

@@ -134,8 +134,45 @@ defmodule Cs2StatsAnalytics.AnalyticsTest do
     assert player.assists == 5
     assert player.adr == 84.5
     assert player.kd_ratio == 1.29
+    assert player.headshots == 11
+    assert player.utility_damage == nil
     assert player.headshot_percent == 50.0
     assert player.mvps == 3
+
+    assert scoreboard.leaders.top_fragger == %{
+             label: "Top Fragger",
+             nickname: "stefan",
+             value: 22,
+             detail: "22 kills"
+           }
+
+    assert scoreboard.leaders.highest_adr == %{
+             label: "Highest ADR",
+             nickname: "stefan",
+             value: 84.5,
+             detail: "84.5 ADR"
+           }
+
+    assert scoreboard.leaders.best_kd == %{
+             label: "Best K/D",
+             nickname: "stefan",
+             value: 1.29,
+             detail: "1.29 K/D"
+           }
+
+    assert scoreboard.leaders.most_headshots == %{
+             label: "Most Headshots",
+             nickname: "stefan",
+             value: 11,
+             detail: "11 headshots"
+           }
+
+    assert scoreboard.leaders.most_utility_damage == %{
+             label: "Most Utility Damage",
+             nickname: nil,
+             value: nil,
+             detail: "No data"
+           }
 
     assert team_bravo.name == "Team Bravo"
     refute team_bravo.won
@@ -187,7 +224,9 @@ defmodule Cs2StatsAnalytics.AnalyticsTest do
                                  "Assists" => "5",
                                  "ADR" => "101.4",
                                  "K/D Ratio" => "2.00",
+                                 "Headshots" => "9",
                                  "Headshots %" => "55",
+                                 "Utility Damage" => "80",
                                  "MVPs" => "4"
                                }
                              }
@@ -205,7 +244,9 @@ defmodule Cs2StatsAnalytics.AnalyticsTest do
                                  "Assists" => "3",
                                  "ADR" => "50.1",
                                  "K/D Ratio" => "0.44",
+                                 "Headshots" => "11",
                                  "Headshots %" => "25",
+                                 "Utility Damage" => "144",
                                  "MVPs" => "1"
                                }
                              }
@@ -226,6 +267,18 @@ defmodule Cs2StatsAnalytics.AnalyticsTest do
     assert [%{nickname: "alpha", kills: 20}] = team_alpha.players
     assert team_beta.name == "team_beta"
     assert [%{nickname: "beta", deaths: 18}] = team_beta.players
+
+    assert scoreboard.leaders.top_fragger.nickname == "alpha"
+    assert scoreboard.leaders.top_fragger.value == 20
+    assert scoreboard.leaders.highest_adr.nickname == "alpha"
+    assert scoreboard.leaders.highest_adr.value == 101.4
+    assert scoreboard.leaders.best_kd.nickname == "alpha"
+    assert scoreboard.leaders.best_kd.value == 2.0
+    assert scoreboard.leaders.most_headshots.nickname == "beta"
+    assert scoreboard.leaders.most_headshots.value == 11
+    assert scoreboard.leaders.most_utility_damage.nickname == "beta"
+    assert scoreboard.leaders.most_utility_damage.value == 144
+    assert scoreboard.leaders.most_utility_damage.detail == "144 utility damage"
   end
 
   test "get_match_scoreboard/1 returns match_not_found for an unknown match" do

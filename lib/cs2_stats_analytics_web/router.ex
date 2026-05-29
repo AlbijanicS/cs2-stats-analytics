@@ -22,7 +22,8 @@ defmodule Cs2StatsAnalyticsWeb.Router do
   scope "/", Cs2StatsAnalyticsWeb do
     pipe_through :browser
 
-    live "/", PlayerDashboardLive, :index
+    live "/", HomeLive, :index
+    live "/dashboard", PlayerDashboardLive, :index
     live "/matches", PlayerMatchesLive, :index
     live "/matches/:faceit_match_id", MatchShowLive, :show
   end

@@ -19,4 +19,72 @@
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
+html,
+body {
+  background: #09090b;
+  overscroll-behavior-y: none;
+}
+
+.typewriter {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 0.08em solid rgb(249 115 22);
+  width: 0;
+  animation:
+    typing 2.4s steps(24, end) forwards,
+    blink 0.8s step-end infinite;
+}
+
+.loading-typewriter {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 0.08em solid currentColor;
+  width: 0;
+  animation:
+    typing-loading 1.8s steps(24, end) forwards,
+    blink 0.8s step-end infinite;
+}
+
+@keyframes typing {
+  from {
+    width: 0;
+  }
+
+  to {
+    width: 24ch;
+  }
+}
+
+@keyframes typing-loading {
+  from {
+    width: 0;
+  }
+
+  to {
+    width: 24ch;
+  }
+}
+
+@keyframes blink {
+  50% {
+    border-color: transparent;
+  }
+}
+
+@media (max-width: 640px) {
+  .typewriter {
+    width: auto;
+    white-space: normal;
+    animation: blink 0.8s step-end infinite;
+  }
+
+  .loading-typewriter {
+    width: auto;
+    animation: blink 0.8s step-end infinite;
+  }
+}
+
 /* This file is for your main application CSS */

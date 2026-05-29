@@ -273,6 +273,8 @@ defmodule Cs2StatsAnalytics.Analytics do
     with {:ok, round} <- first_stats_round(stats),
          teams <- build_scoreboard_teams(match, history, round),
          true <- Enum.any?(teams, &(&1.players != [])) do
+      leaders = build_scoreboard_leaders(teams)
+
       {:ok,
        %{
          match: match,
@@ -283,6 +285,7 @@ defmodule Cs2StatsAnalytics.Analytics do
            faction2: match.score_faction2 || get_in(history, ["results", "score", "faction2"])
          },
          winner: match.winner || get_in(history, ["results", "winner"]),
+         leaders: leaders,
          teams: teams
        }}
     else
@@ -331,11 +334,68 @@ defmodule Cs2StatsAnalytics.Analytics do
         assists: parse_int(player_stats["Assists"]),
         adr: parse_float(player_stats["ADR"]),
         kd_ratio: parse_float(player_stats["K/D Ratio"]),
+        headshots: parse_int(player_stats["Headshots"]),
+        utility_damage:
+          parse_int(player_stats["Utility Damage"]) ||
+            parse_int(player_stats["Utility Damage Done"]),
         headshot_percent: parse_float(player_stats["Headshots %"]),
         mvps: parse_int(player_stats["MVPs"])
       }
     end)
   end
+
+  defp build_scoreboard_leaders(teams) do
+    players = Enum.flat_map(teams, & &1.players)
+
+    case players do
+      [] ->
+        %{}
+
+      players ->
+        %{
+          top_fragger: leader_card(players, :kills, "Top Fragger", "kills"),
+          highest_adr: leader_card(players, :adr, "Highest ADR", "ADR"),
+          best_kd: leader_card(players, :kd_ratio, "Best K/D", "K/D"),
+          most_headshots: leader_card(players, :headshots, "Most Headshots", "headshots"),
+          most_utility_damage:
+            leader_card(players, :utility_damage, "Most Utility Damage", "utility damage")
+        }
+    end
+  end
+
+  defp leader_card(players, stat_key, label, detail_label) do
+    players
+    |> Enum.reject(&(Map.get(&1, stat_key) == nil))
+    |> Enum.max_by(&Map.get(&1, stat_key), fn -> nil end)
+    |> case do
+      nil ->
+        %{
+          label: label,
+          nickname: nil,
+          value: nil,
+          detail: "No data"
+        }
+
+      player ->
+        value = Map.fetch!(player, stat_key)
+
+        %{
+          label: label,
+          nickname: player.nickname,
+          value: value,
+          detail: "#{format_leader_value(value)} #{detail_label}"
+        }
+    end
+  end
+
+  defp format_leader_value(value) when is_float(value) do
+    value
+    |> :erlang.float_to_binary(decimals: 2)
+    |> String.trim_trailing("0")
+    |> String.trim_trailing(".")
+  end
+
+  defp format_leader_value(value), do: to_string(value)
 
   defp team_name_from_stats(%{"team_stats" => %{"Team" => team_name}}), do: team_name
   defp team_name_from_stats(_api_team), do: nil
