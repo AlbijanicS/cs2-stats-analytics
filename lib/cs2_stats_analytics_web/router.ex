@@ -23,6 +23,8 @@ defmodule Cs2StatsAnalyticsWeb.Router do
     pipe_through :browser
 
     live "/", PlayerDashboardLive, :index
+    live "/matches", PlayerMatchesLive, :index
+    live "/matches/:faceit_match_id", MatchShowLive, :show
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

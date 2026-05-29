@@ -21,16 +21,36 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
       |> assign(:status, :empty)
       |> assign(:error, nil)
       |> assign(:loading_nickname, nil)
+      |> assign(:nickname, "")
       |> assign(:active_chart, :performance)
 
     {:ok, socket}
+  end
+
+  def handle_params(params, _uri, socket) do
+    nickname = params |> Map.get("nickname", "") |> String.trim()
+    form = to_form(%{"nickname" => nickname}, as: :search)
+
+    socket =
+      socket
+      |> cancel_async(:load_dashboard)
+      |> assign(:form, form)
+      |> assign(:nickname, nickname)
+
+    socket =
+      case nickname do
+        "" -> assign_empty_dashboard(socket)
+        nickname -> load_dashboard(socket, nickname)
+      end
+
+    {:noreply, socket}
   end
 
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
       <div class="min-h-screen bg-zinc-950 p-3 shadow-2xl shadow-black/30 lg:flex lg:gap-5">
-        <.sidebar />
+        <.sidebar nickname={@nickname} />
 
         <div class="mt-4 min-w-0 flex-1 lg:mt-0">
           <.search_panel form={@form} status={@status} error={@error} />
@@ -41,15 +61,17 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
             <.trend_chart_panel dashboard={@dashboard} active_chart={@active_chart} />
             <.latest_match_card dashboard={@dashboard} />
           </div>
-
-          <.recent_matches_table :if={@dashboard} dashboard={@dashboard} />
         </div>
       </div>
     </Layouts.app>
     """
   end
 
+  attr :nickname, :string, required: true
+
   defp sidebar(assigns) do
+    assigns = assign(assigns, :matches_path, matches_path(assigns.nickname))
+
     ~H"""
     <aside
       id="dashboard-sidebar"
@@ -69,7 +91,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
         class="mt-5 grid grid-cols-2 gap-2 text-sm font-medium sm:grid-cols-4 lg:grid-cols-1"
       >
         <.nav_item icon="hero-squares-2x2" label="Dashboard" active />
-        <.nav_item icon="hero-table-cells" label="Matches" />
+        <.nav_item icon="hero-table-cells" label="Matches" navigate={@matches_path} />
         <.nav_item icon="hero-bolt" label="Aim" />
         <.nav_item icon="hero-wrench-screwdriver" label="Utility" />
         <.nav_item icon="hero-chart-bar-square" label="Impact" />
@@ -93,6 +115,15 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
           <h2 class="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">
             Recent Statistics
           </h2>
+
+          <div
+            :if={@status == :refreshing}
+            id="dashboard-refreshing"
+            class="mt-2 inline-flex items-center gap-1.5 rounded-full border border-zinc-800 bg-black/40 px-2.5 py-1 text-xs font-medium text-zinc-500"
+          >
+            <.icon name="hero-arrow-path" class="size-3 text-zinc-500 motion-safe:animate-spin" />
+            Refreshing...
+          </div>
         </div>
 
         <.form
@@ -121,15 +152,6 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
 
       <p :if={@status == :loading} id="dashboard-loading" class="mt-4 text-sm text-zinc-300">
         Fetching stats...
-      </p>
-
-      <p
-        :if={@status == :refreshing}
-        id="dashboard-refreshing"
-        class="mt-4 flex items-center gap-2 text-sm text-zinc-300"
-      >
-        <.icon name="hero-arrow-path" class="size-4 text-orange-400 motion-safe:animate-spin" />
-        Updating cached stats...
       </p>
 
       <p :if={@error} id="dashboard-error" class="mt-4 text-sm font-medium text-orange-300">
@@ -307,11 +329,9 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
 
   defp latest_match_card(assigns) do
     assigns =
-      assign(
-        assigns,
-        :map_metadata,
-        map_metadata(assigns.dashboard.latest_match_summary.map)
-      )
+      assigns
+      |> assign(:map_metadata, map_metadata(assigns.dashboard.latest_match_summary.map))
+      |> assign(:latest_match_path, latest_match_path(assigns.dashboard))
 
     ~H"""
     <section
@@ -330,9 +350,12 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
 
       <div class="relative z-10">
         <p class="text-sm font-medium text-orange-400">Latest Match</p>
-        <h2 class="mt-1 text-2xl font-bold text-white">
+        <.link
+          navigate={@latest_match_path}
+          class="mt-1 block text-2xl font-bold text-white transition hover:text-orange-300"
+        >
           {@map_metadata.name}
-        </h2>
+        </.link>
 
         <div class="mt-5 space-y-4">
           <.latest_metric
@@ -346,78 +369,6 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
           <.latest_metric label="ADR" value={@dashboard.latest_match_summary.adr} />
           <.latest_metric label="K/D" value={@dashboard.latest_match_summary.kd_ratio} />
         </div>
-      </div>
-    </section>
-    """
-  end
-
-  attr :dashboard, :map, required: true
-
-  defp recent_matches_table(assigns) do
-    ~H"""
-    <section
-      id="recent-matches"
-      class="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-lg shadow-black/20"
-    >
-      <div class="flex items-center justify-between gap-3">
-        <h2 class="text-xl font-semibold text-white">
-          Recent Matches
-        </h2>
-
-        <span class="rounded-full bg-orange-500/10 px-3 py-1 text-xs font-semibold text-orange-300">
-          Last {@dashboard.averages.matches_played}
-        </span>
-      </div>
-
-      <div class="mt-4 overflow-x-auto">
-        <table class="w-full min-w-[42rem] text-left text-sm">
-          <thead class="border-b border-zinc-800 text-xs uppercase tracking-wide text-zinc-500">
-            <tr>
-              <th class="py-3 pr-4 font-semibold">Map</th>
-              <th class="py-3 pr-4 font-semibold">Result</th>
-              <th class="py-3 pr-4 font-semibold">K / D / A</th>
-              <th class="py-3 pr-4 font-semibold">ADR</th>
-              <th class="py-3 pr-4 font-semibold">K/D</th>
-              <th class="py-3 pr-4 font-semibold">HS%</th>
-            </tr>
-          </thead>
-
-          <tbody class="divide-y divide-zinc-800 text-zinc-300">
-            <tr :for={stat <- @dashboard.recent_stats} class="transition hover:bg-black/30">
-              <td class="py-3 pr-4 font-semibold text-white">
-                {stat.match.map}
-              </td>
-
-              <td class="py-3 pr-4">
-                <span class={[
-                  "rounded-full px-2.5 py-1 text-xs font-semibold",
-                  if(stat.won,
-                    do: "bg-emerald-500/10 text-emerald-300",
-                    else: "bg-red-500/10 text-red-300"
-                  )
-                ]}>
-                  {if stat.won, do: "Win", else: "Loss"}
-                </span>
-              </td>
-
-              <td class="py-3 pr-4">
-                {stat.kills} / {stat.deaths} / {stat.assists}
-              </td>
-
-              <td class="py-3 pr-4">
-                {stat.adr}
-              </td>
-
-              <td class="py-3 pr-4">
-                {stat.kd_ratio}
-              </td>
-
-              <td class="py-3 pr-4">
-                {stat.headshot_percent}%
-              </td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </section>
     """
@@ -437,9 +388,8 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
 
         nickname ->
           socket
-          |> cancel_async(:load_dashboard)
           |> assign(:form, form)
-          |> load_dashboard(nickname)
+          |> push_patch(to: ~p"/?nickname=#{nickname}")
       end
 
     {:noreply, socket}
@@ -450,6 +400,14 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
       {:ok, chart} -> {:noreply, assign(socket, :active_chart, chart)}
       :error -> {:noreply, socket}
     end
+  end
+
+  defp assign_empty_dashboard(socket) do
+    socket
+    |> assign(:dashboard, nil)
+    |> assign(:error, nil)
+    |> assign(:status, :empty)
+    |> assign(:loading_nickname, nil)
   end
 
   defp load_dashboard(socket, nickname) do
@@ -535,9 +493,9 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
     |> assign(:loading_nickname, nil)
   end
 
-  defp assign_dashboard_error(socket, reason) do
+  defp assign_dashboard_error(socket, _reason) do
     socket
-    |> assign(:error, refresh_error_message(reason))
+    |> assign(:error, nil)
     |> assign(:status, :loaded)
     |> assign(:loading_nickname, nil)
   end
@@ -572,9 +530,6 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
   defp error_message(:unexpected_exit), do: "Something went wrong while loading the dashboard."
   defp error_message(message) when is_binary(message), do: message
   defp error_message(_reason), do: "Could not load the dashboard."
-
-  defp refresh_error_message(_reason),
-    do: "Could not refresh the dashboard. Showing cached stats."
 
   defp chart_tab_class(active_chart, chart) do
     base = "rounded-md px-3 py-1.5 transition"
@@ -635,22 +590,52 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLive do
 
   defp map_metadata(map), do: %{name: map, image_url: nil}
 
+  defp latest_match_path(%{recent_stats: [latest_stat | _rest], player: player}) do
+    ~p"/matches/#{latest_stat.match.faceit_match_id}?nickname=#{player.nickname}"
+  end
+
+  defp matches_path(nickname) do
+    case String.trim(nickname) do
+      "" -> ~p"/matches"
+      nickname -> ~p"/matches?nickname=#{nickname}"
+    end
+  end
+
   defp avg_headshot_percent(nil), do: "--"
   defp avg_headshot_percent(value), do: "#{value}%"
 
   attr :icon, :string, required: true
   attr :label, :string, required: true
   attr :active, :boolean, default: false
+  attr :navigate, :string, default: nil
 
   defp nav_item(assigns) do
     ~H"""
-    <span class={[
-      "flex items-center gap-2 rounded-lg px-3 py-2.5 transition",
-      if(@active,
-        do: "bg-orange-600 text-white shadow-sm shadow-orange-950/30",
-        else: "text-zinc-300 hover:bg-white/10 hover:text-white"
-      )
-    ]}>
+    <.link
+      :if={@navigate}
+      navigate={@navigate}
+      class={[
+        "flex items-center gap-2 rounded-lg px-3 py-2.5 transition",
+        if(@active,
+          do: "bg-orange-600 text-white shadow-sm shadow-orange-950/30",
+          else: "text-zinc-300 hover:bg-white/10 hover:text-white"
+        )
+      ]}
+    >
+      <.icon name={@icon} class="size-4 shrink-0" />
+      <span class="truncate">{@label}</span>
+    </.link>
+
+    <span
+      :if={!@navigate}
+      class={[
+        "flex items-center gap-2 rounded-lg px-3 py-2.5 transition",
+        if(@active,
+          do: "bg-orange-600 text-white shadow-sm shadow-orange-950/30",
+          else: "text-zinc-300 hover:bg-white/10 hover:text-white"
+        )
+      ]}
+    >
       <.icon name={@icon} class="size-4 shrink-0" />
       <span class="truncate">{@label}</span>
     </span>

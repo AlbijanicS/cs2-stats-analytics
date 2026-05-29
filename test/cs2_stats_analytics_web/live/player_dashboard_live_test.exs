@@ -97,8 +97,18 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
     |> form("#player-search-form", search: %{nickname: "stefan"})
     |> render_submit()
 
+    assert_patch(view, ~p"/?nickname=stefan")
     assert has_element?(view, "#dashboard-summary")
     refute has_element?(view, "#dashboard-loading")
+  end
+
+  test "loads dashboard from nickname query param", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/?nickname=stefan")
+
+    render_async(view)
+
+    assert has_element?(view, "#dashboard-summary")
+    assert has_element?(view, "#dashboard-summary", "stefan")
   end
 
   test "renders stale cached dashboard while refreshing and replaces it after async completion",
@@ -115,7 +125,8 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
     |> render_submit()
 
     assert has_element?(view, "#dashboard-summary", "3")
-    assert has_element?(view, "#dashboard-refreshing")
+    assert has_element?(view, "#dashboard-refreshing", "Refreshing...")
+    refute has_element?(view, "#dashboard-refreshing", "Updating cached stats")
 
     render_async(view)
 
@@ -150,7 +161,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
     render_async(view)
 
     assert has_element?(view, "#dashboard-summary")
-    assert has_element?(view, "#dashboard-error")
+    refute has_element?(view, "#dashboard-error")
     refute has_element?(view, "#dashboard-refreshing")
   end
 
@@ -192,7 +203,17 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
 
     assert has_element?(view, "#dashboard-summary")
     assert has_element?(view, "#dashboard-summary", "stefan")
+    assert has_element?(view, "#dashboard-nav a[href='/matches?nickname=stefan']", "Matches")
+    refute has_element?(view, "#recent-matches")
+
     assert has_element?(view, "#latest-match-summary", "Mirage")
+
+    assert has_element?(
+             view,
+             "#latest-match-summary a[href='/matches/match_010?nickname=stefan']",
+             "Mirage"
+           )
+
     refute has_element?(view, "#latest-match-summary", "de_mirage")
     assert has_element?(view, "#latest-match-summary [style*='mirage.png']")
 
@@ -267,7 +288,7 @@ defmodule Cs2StatsAnalyticsWeb.PlayerDashboardLiveTest do
   end
 
   defp mark_player_stale!(nickname) do
-    stale_at = DateTime.utc_now() |> DateTime.add(-16, :minute) |> DateTime.truncate(:second)
+    stale_at = DateTime.utc_now() |> DateTime.add(-61, :minute) |> DateTime.truncate(:second)
 
     Player
     |> Repo.get_by!(nickname: nickname)

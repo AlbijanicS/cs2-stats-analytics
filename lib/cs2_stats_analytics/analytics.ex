@@ -16,9 +16,9 @@ defmodule Cs2StatsAnalytics.Analytics do
   alias Cs2StatsAnalytics.Faceit.Normalizer
   alias Cs2StatsAnalytics.PlayerMatchImporter
   alias Cs2StatsAnalytics.Repo
-  alias Cs2StatsAnalytics.Schemas.{Player, PlayerMatchStat}
+  alias Cs2StatsAnalytics.Schemas.{Match, Player, PlayerMatchStat}
 
-  @fresh_for_seconds 15 * 60
+  @fresh_for_seconds 60 * 60
 
   def get_or_sync_dashboard(nickname, limit \\ 30) do
     case classify_dashboard(nickname, limit) do
@@ -76,6 +76,13 @@ defmodule Cs2StatsAnalytics.Analytics do
     classify_dashboard(nickname, limit)
   end
 
+  def get_match_scoreboard(faceit_match_id) do
+    with {:ok, match} <- fetch_match_by_faceit_id(faceit_match_id),
+         {:ok, scoreboard} <- build_match_scoreboard(match) do
+      {:ok, scoreboard}
+    end
+  end
+
   defp sync_and_get_dashboard(nickname, limit) do
     with {:ok, _imports} <- sync_player(nickname, limit) do
       get_dashboard(nickname, limit)
@@ -130,6 +137,13 @@ defmodule Cs2StatsAnalytics.Analytics do
     case Repo.get_by(Player, nickname: nickname) do
       nil -> {:error, :player_not_found}
       player -> {:ok, player}
+    end
+  end
+
+  defp fetch_match_by_faceit_id(faceit_match_id) do
+    case Repo.get_by(Match, faceit_match_id: faceit_match_id) do
+      nil -> {:error, :match_not_found}
+      match -> {:ok, match}
     end
   end
 
@@ -250,6 +264,130 @@ defmodule Cs2StatsAnalytics.Analytics do
       }
     end)
   end
+
+  defp build_match_scoreboard(%Match{raw_payload: raw_payload} = match)
+       when is_map(raw_payload) do
+    history = raw_payload["history"] || %{}
+    stats = raw_payload["stats"] || %{}
+
+    with {:ok, round} <- first_stats_round(stats),
+         teams <- build_scoreboard_teams(match, history, round),
+         true <- Enum.any?(teams, &(&1.players != [])) do
+      {:ok,
+       %{
+         match: match,
+         map: match.map || get_in(round, ["round_stats", "Map"]),
+         pretty_map_name: pretty_map_name(match.map || get_in(round, ["round_stats", "Map"])),
+         score: %{
+           faction1: match.score_faction1 || get_in(history, ["results", "score", "faction1"]),
+           faction2: match.score_faction2 || get_in(history, ["results", "score", "faction2"])
+         },
+         winner: match.winner || get_in(history, ["results", "winner"]),
+         teams: teams
+       }}
+    else
+      _error -> {:error, :scoreboard_not_available}
+    end
+  end
+
+  defp build_match_scoreboard(_match), do: {:error, :scoreboard_not_available}
+
+  defp build_scoreboard_teams(match, history, round) do
+    teams_by_id =
+      round
+      |> Map.get("teams", [])
+      |> Enum.filter(&is_map/1)
+      |> Map.new(fn team -> {team["team_id"], team} end)
+
+    ["faction1", "faction2"]
+    |> Enum.map(fn faction ->
+      history_team = get_in(history, ["teams", faction]) || %{}
+
+      api_team =
+        Map.get(teams_by_id, history_team["team_id"]) || Map.get(teams_by_id, faction, %{})
+
+      %{
+        faction: faction,
+        name: history_team["nickname"] || team_name_from_stats(api_team) || faction,
+        won: (match.winner || get_in(history, ["results", "winner"])) == faction,
+        score: score_for_faction(match, history, faction),
+        players: build_scoreboard_players(api_team)
+      }
+    end)
+  end
+
+  defp build_scoreboard_players(api_team) do
+    api_team
+    |> Map.get("players", [])
+    |> Enum.filter(&is_map/1)
+    |> Enum.map(fn player ->
+      player_stats = player["player_stats"] || %{}
+
+      %{
+        nickname: player["nickname"] || "Unknown",
+        player_id: player["player_id"],
+        kills: parse_int(player_stats["Kills"]),
+        deaths: parse_int(player_stats["Deaths"]),
+        assists: parse_int(player_stats["Assists"]),
+        adr: parse_float(player_stats["ADR"]),
+        kd_ratio: parse_float(player_stats["K/D Ratio"]),
+        headshot_percent: parse_float(player_stats["Headshots %"]),
+        mvps: parse_int(player_stats["MVPs"])
+      }
+    end)
+  end
+
+  defp team_name_from_stats(%{"team_stats" => %{"Team" => team_name}}), do: team_name
+  defp team_name_from_stats(_api_team), do: nil
+
+  defp first_stats_round(%{"rounds" => [round | _rest]}) when is_map(round), do: {:ok, round}
+  defp first_stats_round(_stats), do: {:error, :scoreboard_not_available}
+
+  defp score_for_faction(%Match{score_faction1: score}, _history, "faction1")
+       when not is_nil(score),
+       do: score
+
+  defp score_for_faction(%Match{score_faction2: score}, _history, "faction2")
+       when not is_nil(score),
+       do: score
+
+  defp score_for_faction(_match, history, faction),
+    do: get_in(history, ["results", "score", faction])
+
+  defp pretty_map_name(nil), do: "Unknown map"
+
+  defp pretty_map_name(map) do
+    map
+    |> String.replace_prefix("de_", "")
+    |> String.replace("_", " ")
+    |> String.split(" ", trim: true)
+    |> Enum.map_join(" ", &String.capitalize/1)
+  end
+
+  defp parse_int(nil), do: nil
+  defp parse_int(value) when is_integer(value), do: value
+
+  defp parse_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, _rest} -> integer
+      :error -> nil
+    end
+  end
+
+  defp parse_int(_value), do: nil
+
+  defp parse_float(nil), do: nil
+  defp parse_float(value) when is_float(value), do: Float.round(value, 2)
+  defp parse_float(value) when is_integer(value), do: value / 1
+
+  defp parse_float(value) when is_binary(value) do
+    case Float.parse(value) do
+      {float, _rest} -> Float.round(float, 2)
+      :error -> nil
+    end
+  end
+
+  defp parse_float(_value), do: nil
 
   defp fetch_country_ranking_attrs(client, api_player, faceit_player_id) do
     region = get_in(api_player, ["games", "cs2", "region"])
